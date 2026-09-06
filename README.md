@@ -65,6 +65,7 @@ cash. Tidying its own demo wallet stays free. No human tops the wallet up.
 
 ## Live on Hood Chain
 
+    Pension edition  0x4f08bdC9353060351f95207CD47D67D1cF6e5989
     Desk edition     0xf7DBb9142A194F5f409c2c587cFC559D77C40358
     Bid edition      0xb0C34AC5e846e0159f711Db84802D512E916A51F
     Wallet edition   0x3484F1cC081A98103CE0E9E42AE96a2A770eCd79
@@ -75,6 +76,26 @@ cash. Tidying its own demo wallet stays free. No human tops the wallet up.
                      NVDA, SPCX, TSLA, AAPL, MSFT, AMZN, MU, SPY, PLTR, SNDK,
                      INTC, AMD, GOOGL, META, USAR, SGOV, QQQ, ASML, AVGO, ORCL,
                      COIN, HOOD, ARM, CRWV, TSM, BRKB
+
+## The pension edition
+
+Half of every new retirement dollar in America defaults into a target
+date fund, and a committee manages its glide path for decades, for a
+fee. Here the committee is arithmetic. A wallet carves its law once,
+with a beginning, an end, and two allocations, and the target it is
+measured against slides between them second by second, for forty years
+if asked. Drift appears as the law walks away from the holdings, the
+same workers close it through the same walls, and the desk still
+crosses opposite wallets, which now has a name older than any of this:
+the young buying the market from the old.
+
+One glide, read at three ages on the live chain at a single block:
+
+    at 25    market 9000 bps
+    at 45    market 5000 bps
+    at 64    market 1200 bps, the bond near half
+
+Sign once. Retire on schedule. Headcount zero the entire way.
 
 ## The desk edition
 
