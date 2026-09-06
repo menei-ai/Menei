@@ -289,6 +289,14 @@
     <tr><td colspan="5" class="dim">reading the chain for open positions…</td></tr>
   </tbody></table>
   <div class="msg" id="board_msg"></div>
+  <h2 style="margin-top:16px"><span class="tag">»</span> the desk <span class="tag">«</span></h2>
+  <p style="margin-bottom:12px">when one wallet must sell what another must buy, no pool is needed. one press and they trade with each other at the official feed, to the cent. nothing is lost on the way, so both wallets pay their whole fee to whoever pressed.</p>
+  <table class="jobs"><thead>
+    <tr><th>seller</th><th>buyer</th><th>stock</th><th>size</th><th>pay</th><th>job</th></tr>
+  </thead><tbody id="cross_rows">
+    <tr><td colspan="6" class="dim">reading the chain for matched orders…</td></tr>
+  </tbody></table>
+  <div class="msg" id="cross_msg"></div>
   <h2 style="margin-top:16px"><span class="tag">»</span> work completed <span class="tag">«</span></h2>
   <table class="jobs"><thead>
     <tr><th>account</th><th>drift fixed</th><th>paid</th><th>worker</th></tr>
@@ -773,6 +781,7 @@ async function loadBoard() {
     }
     if (!open.length) rows.innerHTML = '<tr><td colspan="5" class="dim">no open jobs. ' + tidy.length + ' account' + (tidy.length === 1 ? '' : 's') + ' on their law, watched every block. fund a wallet, let it drift, and a job appears.</td></tr>';
     else $('board_msg').textContent = '';
+    try { await loadCrosses(accounts); } catch {}
   } catch (e) {
     rows.innerHTML = '<tr><td colspan="5" class="dim">the board is unreachable: ' + (e.message || e).toString().slice(0, 60) + '</td></tr>';
   }
@@ -863,6 +872,79 @@ async function loadMyLog() {
       + '<td class="pay">$' + (Number(word(2)) / 1e6).toFixed(4) + '</td>'
       + '<td>' + (keeper.toLowerCase() === KEEPER_BOT ? 'the employee' : keeper.slice(0,6) + '…' + keeper.slice(-4)) + '</td>';
     rows.appendChild(tr);
+  }
+}
+
+// -- the desk: two wallets that want opposite trades, settled at the feed ----
+const SEL_CROSS = '0x2c06e95c';   // cross(address,address,uint256,uint256)
+
+async function deltasOf(a) {
+  const px = await allPrices();
+  const n = Number(BigInt(await call(a.venue, SEL.assetCount)));
+  const balRaws = await Promise.all(Array.from({length: n}, (_, i) => call(a.venue, SEL.bal + pad(a.user) + pad(i))));
+  const bal = balRaws.map((r, i) => Number(BigInt(r)) / 10 ** (i === 0 ? 6 : 18));
+  const value = bal.reduce((s, b, i) => s + b * px[i], 0);
+  const deltas = [];
+  for (let i = 1; i < n; i++) deltas[i] = value * (a.weights[i] || 0) / 10000 - bal[i] * px[i];
+  return { a, deltas, value, px };
+}
+
+async function loadCrosses(accounts) {
+  const rows = $('cross_rows'); if (!rows) return;
+  // the cross lives on the desk venue only, and both sides must be genuinely off their law
+  const desk = accounts.filter(x => x.venue === CONTRACT && x.value > 0.5 && x.drift !== null && x.drift >= x.minDrift);
+  const infos = [];
+  for (const a of desk) { try { infos.push(await deltasOf(a)); } catch {} }
+  const matches = [];
+  for (const sInfo of infos) for (const bInfo of infos) {
+    if (sInfo.a.user === bInfo.a.user) continue;
+    for (let i = 1; i < 27; i++) {
+      const sell = -(sInfo.deltas[i] || 0), buy = bInfo.deltas[i] || 0;
+      if (sell < 0.5 || buy < 0.5) continue;
+      const size = Math.min(sell, buy) * 0.95;   // a hair short of either target, never past it
+      const est = x => x.a.bounty * Math.min(2 * size / x.value * 10000, x.a.drift) / 10000;
+      matches.push({ seller: sInfo.a, buyer: bInfo.a, asset: i, size, px: sInfo.px[i], pay: est(sInfo) + est(bInfo) });
+    }
+  }
+  matches.sort((x, y) => y.pay - x.pay);
+  rows.innerHTML = '';
+  for (const m of matches.slice(0, 6)) {
+    const tr = document.createElement('tr');
+    tr.innerHTML = '<td>' + m.seller.user.slice(0,6) + '…' + m.seller.user.slice(-4) + '</td>'
+      + '<td>' + m.buyer.user.slice(0,6) + '…' + m.buyer.user.slice(-4) + '</td>'
+      + '<td>' + (STOCKS[m.asset-1]?.[0] || m.asset) + '</td>'
+      + '<td>' + fmtUsd(m.size) + '</td>'
+      + '<td class="pay">' + fmtUsd(m.pay) + '</td>'
+      + '<td><button class="hire">» cross them «</button></td>';
+    tr.querySelector('button').onclick = () => crossThem(m, tr);
+    rows.appendChild(tr);
+  }
+  if (!matches.length) rows.innerHTML = '<tr><td colspan="6" class="dim">the desk is open and nobody is matched. it takes two wallets wanting opposite sides of the same stock; the moment that happens, a one-press job appears here.</td></tr>';
+}
+
+async function crossThem(m, tr) {
+  if (!me) { await connect(); if (!me) return say('cross_msg', 'a cross needs a worker. connect a wallet.', true); }
+  const btn = tr.querySelector('button');
+  btn.disabled = true; btn.textContent = 'checking…';
+  try {
+    const amount = BigInt(Math.floor(m.size / m.px * 1e6)) * 10n ** 12n;
+    const data = SEL_CROSS + pad(m.seller.user) + pad(m.buyer.user) + pad(m.asset) + pad(amount);
+    // run the whole cross as a read first, so one that will not clear never
+    // reaches the wallet as a scary unknown transaction
+    try {
+      await rpc('eth_call', [{ from: me, to: CONTRACT, data }, 'latest']);
+    } catch (sim) {
+      tr.classList.add('done');
+      btn.textContent = 'not crossable now';
+      return say('cross_msg', 'this cross will not clear right now: a side moved, or a permission is missing. nothing was sent to your wallet.', true);
+    }
+    btn.textContent = 'crossing…';
+    const h = await send(CONTRACT, data);
+    say('cross_msg', 'crossed at the feed, to the cent. shares one way, cash the other, and both fees are yours when the block lands. tx ' + h.slice(0,14) + '…');
+    setTimeout(loadBoard, 6000);
+  } catch (e) {
+    btn.disabled = false; btn.textContent = '» cross them «';
+    say('cross_msg', 'refused: ' + (e.message || e).toString().slice(0, 90), true);
   }
 }
 
