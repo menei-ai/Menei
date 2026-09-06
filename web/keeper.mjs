@@ -305,11 +305,13 @@ async function serveOne(v, user, px, awake) {
   const expectedPay = Number(acct.bountyQuote) / 1e6 * drift / 10000;
   if (expectedPay > plan.cashAfter) { log(user, 'skipped: bounty exceeds cash (broken policy)'); return; }
 
-  // Tidying its own desk is free. A stranger's job has to pay for itself:
-  // estimate the real gas, and refuse work that earns less than 1.5x of it.
+  // Every plan is tried as a read first, its own desk included: a plan that
+  // would revert is a plan that only burns gas, and blind sends were how the
+  // wallet bled on 2026-09-06. Tidying its own desk stays free of the profit
+  // test; a stranger's job still has to pay for itself at 1.5x the gas.
+  const est = await v.c.rebalance.estimateGas(user, plan.trades).catch(() => null);
+  if (est === null) { log(user, 'skipped: the trade would revert as planned'); return; }
   if (user.toLowerCase() !== wallet.address.toLowerCase()) {
-    const est = await v.c.rebalance.estimateGas(user, plan.trades).catch(() => null);
-    if (est === null) { log(user, 'skipped: the trade would revert as planned'); return; }
     const [fee, px] = await Promise.all([provider.getFeeData(), ethUsd()]);
     const costUsd = Number(est) * Number(fee.gasPrice) / 1e18 * px;
     if (expectedPay < costUsd * PROFIT_MARGIN) {
