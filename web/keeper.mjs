@@ -5,7 +5,7 @@ import { JsonRpcProvider, FetchRequest, Wallet, Contract } from 'ethers';
 
 const RPC = process.env.RPC_URL || 'https://rpc.mainnet.chain.robinhood.com';
 const CONTRACTS = [
-  { addr: '0xf7DBb9142A194F5f409c2c587cFC559D77C40358', fromBlock: 55535000, wallet: true },  // desk: 26 assets, plus the internal cross
+  { addr: '0xf7DBb9142A194F5f409c2c587cFC559D77C40358', fromBlock: 55535000, wallet: true, cross: true },  // desk: 26 assets, plus the internal cross
   { addr: '0x3484F1cC081A98103CE0E9E42AE96a2A770eCd79', fromBlock: 53775000, wallet: true },  // v4: 26 assets, stocks through treasuries
   { addr: '0xaFd484733f4B23e235bf1825c9AdA39368160B03', fromBlock: 50946000, wallet: true },  // v3: fifteen stocks
   { addr: '0xcc27Dd6FD74210303660643bcf6c9d115443bFcA', fromBlock: 50820000 },                // custody, 15 stocks
@@ -44,6 +44,7 @@ const ABI = [
   'function assetCount() view returns (uint256)',
   'function assetAt(uint256) view returns (address token, address feed, uint24 poolFee, uint8 decimals)',
   'function rebalance(address user, (uint256 sellAsset, uint256 buyAsset, uint256 amountIn)[] trades)',
+  'function cross(address seller, address buyer, uint256 asset, uint256 amount)',
   'event TargetSet(address indexed user, uint16[] targetBps, uint16 minDriftBps, uint16 bandBps, uint128 bountyQuote)',
 ];
 const FEED_ABI = ['function latestRoundData() view returns (uint80, int256, uint256, uint256, uint80)'];
@@ -286,6 +287,65 @@ function planTrades(weights, balances, px, cash, awake) {
   return trades.length ? { trades, cashAfter: budget - Math.min(cashNeeded, budget) } : null;
 }
 
+// -- the desk ---------------------------------------------------------------
+// The employee sits at the desk too. When two of the wallets it serves want
+// opposite sides of the same stock, routing both through a pool would cost
+// each of them the spread for nothing, so before any pool work it looks for
+// pairs and crosses them at the feed. A cross never touches a pool: it clears
+// at any hour, weekends included, and nothing is deducted from the pay.
+async function crossPass(v, px) {
+  const self = wallet.address.toLowerCase();
+  const infos = [];
+  for (const u of await users(v)) {
+    try {
+      const [acct, driftRaw] = await Promise.all([v.c.accountOf(u), v.c.drift(u).catch(() => null)]);
+      if (driftRaw === null || !acct.targetBps.length) continue;
+      const drift = Number(driftRaw);
+      if (drift < Math.max(Number(acct.minDriftBps), MIN_ACT_BPS)) continue;
+      const balances = [];
+      for (let i = 0; i < v.assets.length; i++) balances.push(Number(await v.c.heldBy(u, i)) / 10 ** (i === 0 ? 6 : 18));
+      const value = balances.reduce((s2, b, i) => s2 + b * px[i], 0);
+      if (value < MIN_VALUE_USD) continue;
+      const deltas = [];
+      for (let i = 1; i < v.assets.length; i++) deltas[i] = value * Number(acct.targetBps[i]) / 10000 - balances[i] * px[i];
+      infos.push({ u, drift, value, deltas, bounty: Number(acct.bountyQuote) / 1e6 });
+    } catch {}
+  }
+  for (const sInfo of infos) for (const bInfo of infos) {
+    if (sInfo.u === bInfo.u) continue;
+    const ownSide = sInfo.u.toLowerCase() === self || bInfo.u.toLowerCase() === self;
+    if (ownSide && Date.now() < handsOffUntil) continue;   // a shaken desk stays available to strangers
+    for (let i = 1; i < v.assets.length; i++) {
+      const sell = -(sInfo.deltas[i] || 0), buy = bInfo.deltas[i] || 0;
+      if (sell < 0.5 || buy < 0.5) continue;
+      const size = Math.min(sell, buy) * 0.95;
+      const amount = BigInt(Math.floor(size / px[i] * 1e6)) * 10n ** 12n;
+      // tried as a read first, always: a cross that would revert costs nothing
+      const est = await v.c.cross.estimateGas(sInfo.u, bInfo.u, i, amount).catch(() => null);
+      if (est === null) continue;
+      // a fee paid to the employee's own wallet is a wash, not income
+      const fee = x => x.bounty * Math.min(2 * size / x.value * 10000, x.drift) / 10000;
+      const pay = (sInfo.u.toLowerCase() === self ? 0 : fee(sInfo)) + (bInfo.u.toLowerCase() === self ? 0 : fee(bInfo));
+      if (!ownSide) {
+        const [feeData, eth] = await Promise.all([provider.getFeeData(), ethUsd()]);
+        const costUsd = Number(est) * Number(feeData.gasPrice) / 1e18 * eth;
+        if (pay < costUsd * PROFIT_MARGIN) {
+          v.deskLogged ??= new Set();
+          const key = sInfo.u + bInfo.u + i;
+          if (!v.deskLogged.has(key)) { v.deskLogged.add(key); log(`desk: ${sInfo.u.slice(0, 8)}x${bInfo.u.slice(0, 8)} matched, pays $${pay.toFixed(3)} vs gas $${costUsd.toFixed(3)}, left on the board for a human`); }
+          continue;
+        }
+      }
+      if (DRY) { log(`desk DRY: would cross $${size.toFixed(2)} of asset ${i}, ${sInfo.u.slice(0, 8)} to ${bInfo.u.slice(0, 8)}`); return; }
+      const tx = await v.c.cross(sInfo.u, bInfo.u, i, amount, { gasLimit: est * 13n / 10n });
+      const rc = await tx.wait();
+      sentToday++;
+      log(`crossed at the desk: $${size.toFixed(2)} of asset ${i}, ${sInfo.u.slice(0, 8)} sold to ${bInfo.u.slice(0, 8)}, pay ~$${pay.toFixed(3)}, gas ${rc.gasUsed}, tx ${tx.hash}`);
+      return;   // one cross a tick; the next tick reads the new world
+    }
+  }
+}
+
 async function serveOne(v, user, px, awake) {
   // a freshly disturbed desk is left alone, so a stranger has a fair shot at the bounty
   if (user.toLowerCase() === wallet.address.toLowerCase() && Date.now() < handsOffUntil) return;
@@ -356,6 +416,10 @@ async function tick() {
       v.lastAsleep = asleep.length;
       log(`${v.addr.slice(0, 8)}… ${awake.length - 1 - asleep.length}/${awake.length - 1} assets awake` +
           (asleep.length ? `, sleeping: ${asleep.join(',')}` : ', trading around the clock'));
+    }
+    if (v.cross && sentToday < MAX_TX_PER_DAY) {
+      try { await crossPass(v, px); }
+      catch (e) { log('desk pass failed:', String(e.shortMessage || e.message).slice(0, 100)); }
     }
     for (const u of await users(v)) {
       const key = v.addr + ':' + u;
