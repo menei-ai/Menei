@@ -65,6 +65,7 @@ cash. Tidying its own demo wallet stays free. No human tops the wallet up.
 
 ## Live on Hood Chain
 
+    Desk edition     0xf7DBb9142A194F5f409c2c587cFC559D77C40358
     Bid edition      0xb0C34AC5e846e0159f711Db84802D512E916A51F
     Wallet edition   0x3484F1cC081A98103CE0E9E42AE96a2A770eCd79
     First wallet     0xaFd484733f4B23e235bf1825c9AdA39368160B03
@@ -74,6 +75,26 @@ cash. Tidying its own demo wallet stays free. No human tops the wallet up.
                      NVDA, SPCX, TSLA, AAPL, MSFT, AMZN, MU, SPY, PLTR, SNDK,
                      INTC, AMD, GOOGL, META, USAR, SGOV, QQQ, ASML, AVGO, ORCL,
                      COIN, HOOD, ARM, CRWV, TSM, BRKB
+
+## The desk edition
+
+Wall Street's asset managers cross client orders in-house under rule
+17a-7, whose one demand is the independent current market price. The
+academics who read four million of those trades found the prices set
+strategically to move performance between sibling funds, and many of the
+trades backdated, because a human typed the price in.
+
+Here nobody types it in. When one wallet must sell what another must
+buy, anyone may call cross(): shares walk from the seller to the buyer,
+cash walks straight back, and the only price the code can produce is the
+official feed at that block. Both wallets must land strictly closer to
+their own laws or the whole cross reverts. Nothing is lost to any pool,
+so the worker who found the match is paid in full by both sides.
+
+Ten thousand dollars of SNDK on the live chain, both ways, same block:
+
+    through the pool      5.3272 shares    the pool kept $785.91    worker paid  $0.00
+    crossed at the feed   5.7815 shares    the pool got nothing     worker paid $199.98
 
 ## The bid edition
 
