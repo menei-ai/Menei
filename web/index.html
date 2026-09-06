@@ -181,11 +181,13 @@
 
 <div class="panel" id="start">
   <h2><span class="tag">»</span> pick a portfolio <span class="tag">«</span></h2>
-  <p style="margin-bottom:12px">choose one below, or write your own further down. your stocks stay in your own wallet the whole time, nobody takes a fee, and you can change your mind a minute later.</p>
+  <p style="margin-bottom:12px">choose one below, write your own further down, or press the second button and the mix already sitting in your wallet becomes your law, maintained for you from then on. your stocks stay in your own wallet the whole time, nobody takes a fee, and you can change your mind a minute later.</p>
   <div class="row">
     <button class="act" id="start_btn">Connect a wallet</button>
-    <span id="start_note">three signatures and you are hired. no deposit, no minimum.</span>
+    <button class="act" id="manage_btn">Manage what I hold</button>
+    <span id="start_note">a few signatures and you are hired. no deposit, no minimum.</span>
   </div>
+  <div class="msg" id="start_msg"></div>
 </div>
 
 <div class="panel" id="shelf">
@@ -548,6 +550,52 @@ $('revoke').onclick = async () => {
     say('vault_msg', 'revoked. nothing to withdraw: you never gave anything up.');
     refresh();
   } catch (e) { say('vault_msg', 'refused: ' + (e.message || e).slice(0,90), true); }
+};
+
+// -- one press: the wallet you already built becomes the law -----------------
+// No decisions. The mix in the wallet is read, a sliver of cash is kept back
+// so the account can always pay its own workers, permissions are collected
+// for the tokens actually held, and the law is carved to match. From then on
+// the wallet maintains itself.
+$('manage_btn').onclick = async () => {
+  if (!me) { await connect(); if (!me) return; }
+  if (!deployed) return say('start_msg', 'the vault has not landed on the chain yet. soon.', true);
+  try {
+    say('start_msg', 'reading what you hold…');
+    const px = await allPrices();
+    const [cashRaw, ...raws] = await Promise.all([
+      call(CONTRACT, SEL.bal + pad(me) + pad(0)),
+      ...STOCKS.map((_, i) => call(CONTRACT, SEL.bal + pad(me) + pad(i + 1))),
+    ]);
+    const bal = [Number(BigInt(cashRaw)) / 1e6, ...raws.map(r => Number(BigInt(r)) / 1e18)];
+    const value = bal.reduce((sum, b, i) => sum + b * px[i], 0);
+    if (value < 0.5) return say('start_msg', 'this wallet holds nothing to manage yet. bring USDG or stocks to it on Robinhood Chain first.', true);
+
+    let w = bal.map((b, i) => Math.floor(b * px[i] / value * 10000));
+    if (w[0] < 200) {
+      const inStocks = w.slice(1).reduce((a, b) => a + b, 0) || 1;
+      w = w.map((v, i) => i === 0 ? 200 : Math.floor(v * (10000 - 200) / inStocks));
+    }
+    w[0] += 10000 - w.reduce((a, b) => a + b, 0);
+
+    const heldToks = STOCKS.map((st, i) => BigInt(raws[i]) > 0n ? st[2] : null).filter(Boolean);
+    const toks = [USDG, ...heldToks];
+    const allows = await Promise.all(toks.map(allowanceOf));
+    const missing = toks.filter((t, i) => allows[i] === 0n);
+    for (let i = 0; i < missing.length; i++) {
+      say('start_msg', 'signature ' + (i + 1) + ' of ' + (missing.length + 1) + ': permission for ' + tickerOf(missing[i]) + '. it can move only to rebalance you, only back to you.');
+      await send(missing[i], SEL.approve + pad(CONTRACT) + MAX);
+    }
+    say('start_msg', 'last signature: carving your law.');
+    const band = Math.round((+$('band').value || 2) * 100);
+    const bounty = BigInt(Math.round((+$('bounty').value || 0.2) * 1e6));
+    const data = SEL.setTarget + pad(0x80) + pad(100) + pad(band) + pad(bounty)
+      + pad(w.length) + w.map(v => pad(v)).join('');
+    await send(CONTRACT, data);
+    hasLaw = true; lawLoaded = false; pwMissing = [];
+    say('start_msg', 'done. the mix you already built is the law now, and this wallet maintains itself from here. the drift, the jobs and the work all show below.');
+    refresh();
+  } catch (e) { say('start_msg', 'refused: ' + (e.message || e).toString().slice(0, 90), true); }
 };
 
 function assetToken(i) { return STOCKS[i - 1][2]; }
