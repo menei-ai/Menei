@@ -43,7 +43,7 @@ async function proxyRpc(body, method) {
 const UA = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36';
 // Only what the page needs; anything else is refused.
 const ALLOW = new Set(['eth_call', 'eth_blockNumber', 'eth_getBalance', 'eth_chainId', 'eth_getLogs']);
-const AUM0S = new Set(['0xe46b6e60c7b2cbc1f9761b3f12a69813093b6dde', '0xcc27dd6fd74210303660643bcf6c9d115443bfca', '0xafd484733f4b23e235bf1825c9ada39368160b03', '0x3484f1cc081a98103ce0e9e42ae96a2a770ecd79', '0xf7dbb9142a194f5f409c2c587cfc559d77c40358']);
+const AUM0S = new Set(['0xe46b6e60c7b2cbc1f9761b3f12a69813093b6dde', '0xcc27dd6fd74210303660643bcf6c9d115443bfca', '0xafd484733f4b23e235bf1825c9ada39368160b03', '0x3484f1cc081a98103ce0e9e42ae96a2a770ecd79', '0xf7dbb9142a194f5f409c2c587cfc559d77c40358', '0x4f08bdc9353060351f95207cd47d67d1cf6e5989']);
 // The proxy serves this site only. No CORS headers are ever emitted, so
 // other origins cannot borrow it from a browser; same-origin needs none.
 const SITE_ORIGINS = new Set(['https://aumzero.com', 'https://www.aumzero.com', 'https://aum0-web-production.up.railway.app']);

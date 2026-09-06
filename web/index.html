@@ -324,7 +324,8 @@
 <div class="foot">✟ under eternal management ✟ the employee works weekends unpaid ✟</div>
 
 <script>
-const CONTRACT = '0xf7DBb9142A194F5f409c2c587cFC559D77C40358'; // desk: 26 assets, plus the internal cross
+const CONTRACT = '0x4f08bdC9353060351f95207CD47D67D1cF6e5989'; // pension: the desk, plus laws that age
+const DESK = '0xf7DBb9142A194F5f409c2c587cFC559D77C40358';     // the crossing venue before it, still live
 const V4 = '0x3484F1cC081A98103CE0E9E42AE96a2A770eCd79';       // the 26 asset venue before the desk, still live
 const V3 = '0xaFd484733f4B23e235bf1825c9AdA39368160B03';       // the fifteen stock venue, still live
 const OLD_VAULTS = [
@@ -733,6 +734,7 @@ $('wd_old').onclick = async () => {
 const TARGETSET_TOPIC = '0xb8766537c154c2943c70a08668e5bbee5aa95bb3a80803f9c11d0b49b846fb87';
 const SEL_REBALANCE = '0x4db4b4c9';
 const SEL_ROUND = '0xfeaf968c';
+const DEPLOY_BLOCK_PENSION = '0x353ef82';
 const DEPLOY_BLOCK_DESK = '0x34f66fd';   // the desk
 const DEPLOY_BLOCK_V4 = '0x334a3f8';
 const DEPLOY_BLOCK_V3 = '0x3096d00';
@@ -803,7 +805,7 @@ async function loadBoard() {
   try {
     // both wallet venues are live and the employee serves both, so the board
     // has to post jobs from both or the work goes unseen
-    const venues = [[CONTRACT, DEPLOY_BLOCK_DESK], [V4, DEPLOY_BLOCK_V4], [V3, DEPLOY_BLOCK_V3]];
+    const venues = [[CONTRACT, DEPLOY_BLOCK_PENSION], [DESK, DEPLOY_BLOCK_DESK], [V4, DEPLOY_BLOCK_V4], [V3, DEPLOY_BLOCK_V3]];
     const accounts = [];
     for (const [venue, from] of venues) {
       const logs = await rpc('eth_getLogs', [{ address: venue, topics: [TARGETSET_TOPIC], fromBlock: from, toBlock: 'latest' }]);
@@ -851,7 +853,7 @@ async function loadWorkLog() {
   // after the first full scan only the blocks since last time are read
   const head = parseInt(await rpc('eth_blockNumber', []), 16);
   const fresh = [];
-  for (const [addr, from] of [[CONTRACT, DEPLOY_BLOCK_DESK], [V4, DEPLOY_BLOCK_V4], [V3, DEPLOY_BLOCK_V3], ...OLD_VAULTS.map(([a]) => [a, DEPLOY_BLOCK_V1])]) {
+  for (const [addr, from] of [[CONTRACT, DEPLOY_BLOCK_PENSION], [DESK, DEPLOY_BLOCK_DESK], [V4, DEPLOY_BLOCK_V4], [V3, DEPLOY_BLOCK_V3], ...OLD_VAULTS.map(([a]) => [a, DEPLOY_BLOCK_V1])]) {
     const start = workScannedTo === null ? from : '0x' + (workScannedTo + 1).toString(16);
     if (workScannedTo !== null && workScannedTo >= head) break;
     fresh.push(...await rpc('eth_getLogs', [{ address: addr, topics: [REBALANCED_TOPIC], fromBlock: start, toBlock: '0x' + head.toString(16) }]));
@@ -897,7 +899,7 @@ function paintPaystubEarned() {
 // -- your statement: the work done on YOUR account, and what it cost you -----
 async function loadMyLog() {
   if (!me) return;
-  const sources = [[CONTRACT, DEPLOY_BLOCK_DESK], [V4, DEPLOY_BLOCK_V4], [V3, DEPLOY_BLOCK_V3], ...OLD_VAULTS.map(([a]) => [a, DEPLOY_BLOCK_V1])];
+  const sources = [[CONTRACT, DEPLOY_BLOCK_PENSION], [DESK, DEPLOY_BLOCK_DESK], [V4, DEPLOY_BLOCK_V4], [V3, DEPLOY_BLOCK_V3], ...OLD_VAULTS.map(([a]) => [a, DEPLOY_BLOCK_V1])];
   const topicMe = '0x' + pad(me);
   // a failed read keeps the old text and retries next cycle; it never
   // becomes a false "nothing yet"

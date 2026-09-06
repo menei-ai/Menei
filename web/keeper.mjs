@@ -5,6 +5,7 @@ import { JsonRpcProvider, FetchRequest, Wallet, Contract } from 'ethers';
 
 const RPC = process.env.RPC_URL || 'https://rpc.mainnet.chain.robinhood.com';
 const CONTRACTS = [
+  { addr: '0x4f08bdC9353060351f95207CD47D67D1cF6e5989', fromBlock: 55832000, wallet: true, cross: true },  // pension: the desk, plus laws that age
   { addr: '0xf7DBb9142A194F5f409c2c587cFC559D77C40358', fromBlock: 55535000, wallet: true, cross: true },  // desk: 26 assets, plus the internal cross
   { addr: '0x3484F1cC081A98103CE0E9E42AE96a2A770eCd79', fromBlock: 53775000, wallet: true },  // v4: 26 assets, stocks through treasuries
   { addr: '0xaFd484733f4B23e235bf1825c9AdA39368160B03', fromBlock: 50946000, wallet: true },  // v3: fifteen stocks
