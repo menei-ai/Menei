@@ -140,6 +140,7 @@ a{color:inherit;text-decoration:none}
 </div>
 
 <div class="dock"><div class="dockin px">
+  <a class="di" id="dk_me"><span class="ic">🪪</span>My desk</a>
   <a class="di" id="dk_funds"><span class="ic">🗂</span>Funds</a>
   <a class="di" id="dk_jobs"><span class="ic">🛎</span>Careers</a>
   <a class="di" href="/floor.html"><span class="ic">🖥</span>The floor</a>
@@ -160,6 +161,10 @@ a{color:inherit;text-decoration:none}
     <div class="frow"><div><b>Bid</b><br><span class="dim2">workers are paid for the price they deliver.</span></div><a target="_blank" rel="noopener" href="https://explorer.mainnet.chain.robinhood.com/address/0xb0C34AC5e846e0159f711Db84802D512E916A51F">0xb0C3…A51F</a></div>
     <div class="frow"><div><b>Wallet</b><br><span class="dim2">the original. twenty six assets, three walls.</span></div><a target="_blank" rel="noopener" href="https://explorer.mainnet.chain.robinhood.com/address/0x3484F1cC081A98103CE0E9E42AE96a2A770eCd79">0x3484…Cd79</a></div>
     <div class="fnote">every fund: 0.00% fees, no owner, no admin, no upgrade path. the address is the prospectus.</div>
+    <div style="border-top:1.5px solid var(--ink);margin-top:12px;padding-top:10px"><b>the shelf</b>
+      <div class="dim2" style="margin:4px 0 8px">portfolios anyone can take. adopt one and the weights become your policy, in your own wallet. nothing moves, nothing is pooled.</div>
+      <div id="shelf_rows"></div>
+    </div>
   </div>
 </div>
 
@@ -170,6 +175,9 @@ a{color:inherit;text-decoration:none}
     <table class="jt"><thead><tr><th>account</th><th>worth</th><th>drift</th><th>pay</th><th></th></tr></thead>
     <tbody id="jobs_rows"><tr><td colspan="5" class="dim2">reading the chain…</td></tr></tbody></table>
     <div class="dim2" id="jobs_msg" style="margin-top:10px"></div>
+    <div style="border-top:1.5px solid var(--ink);margin-top:12px;padding-top:10px"><b>work completed</b>
+      <table class="jt" style="margin-top:8px"><tbody id="done_rows"><tr><td class="dim2">reading the ledger…</td></tr></tbody></table>
+    </div>
   </div>
 </div>
 
@@ -212,6 +220,22 @@ a{color:inherit;text-decoration:none}
     <div class="prow"><span>holdings</span><b id="mg_mix">—</b></div>
     <button class="osbtn ok" id="mg_go" style="margin-top:14px;width:100%">Begin</button>
     <div class="dim2" id="mg_msg" style="margin-top:10px"></div>
+  </div>
+</div>
+
+<div class="window sub" id="win_me" hidden style="left:16%;top:110px;width:540px">
+  <div class="titlebar drag"><span class="tb-btn tb-x" data-close="win_me"></span><span class="title px">MY DESK</span></div>
+  <div class="pane">
+    <div class="prow"><span>wallet</span><b id="me_addr">not connected</b></div>
+    <div class="prow"><span>under management</span><b id="me_worth">—</b></div>
+    <div class="prow"><span>drift</span><b id="me_drift">—</b></div>
+    <div class="prow"><span>policy</span><b id="me_policy">—</b></div>
+    <div class="prow"><span>paid for help, lifetime</span><b id="me_paid">—</b></div>
+    <div class="dim2" id="me_note" style="margin-top:10px">everything stays in your own wallet. jobs post themselves at 300 bps; you do nothing.</div>
+    <div style="display:flex;gap:10px;margin-top:12px">
+      <button class="osbtn ok" id="me_manage">Setup assistant</button>
+      <a class="osbtn" href="/floor.html#law">Edit on the floor</a>
+    </div>
   </div>
 </div>
 
@@ -336,6 +360,7 @@ let workLogs=[];
     const dr=await call(CONTRACT,SEL.drift+pad(KEEPER));
     $('s_drift').textContent=parseInt(dr,16)+' bps';
     paintPaystub();
+    renderDone();
   }catch(e){}
 })();
 
@@ -494,12 +519,121 @@ $('mg_go').onclick=async()=>{
 
 /* -------- dock + chrome wiring -------- */
 $('dk_funds').onclick=()=>openWin('win_funds');
-$('dk_jobs').onclick=()=>{openWin('win_jobs');loadJobs();};
+$('dk_jobs').onclick=()=>{openWin('win_jobs');loadJobs();renderDone();};
 $('dk_pay').onclick=()=>{openWin('win_pay');paintPaystub();};
 $('dk_mandate').onclick=async()=>{openWin('win_mandate');if(me)paintMandate();};
 $('dk_policy').onclick=()=>alertOS('your policy lives on the floor for now: carve weights, band and bounty there, or use the setup assistant for the one-press version.');
 $('lnk_manage').onclick=async(e)=>{e.preventDefault();openWin('win_manage');if(!me){try{await connect();}catch{}}if(me)paintManage();};
 $('lnk_login').onclick=async(e)=>{e.preventDefault();try{await connect();alertOS('connected. the firm knows you by your address and nothing else.');}catch(err){alertOS((err.message||err).toString().slice(0,90));}};
+
+const SEL_GLIDEOF='0x5a6250d1';
+const SHELF = [
+  { name: 'the sixty forty', blurb: 'the oldest portfolio in finance, now that the chain has a bond',
+    mix: { SPY: 57, SGOV: 38 } },
+  { name: 'stocks, metal and oil', blurb: 'the market, plus the things it is priced in',
+    mix: { SPY: 45, SGOV: 20, SLV: 15, USO: 10 } },
+  { name: 'the employee\'s own book', blurb: 'what the robot holds for itself',
+    mix: { NVDA: 30, SPCX: 20, AAPL: 15, MSFT: 15 } },
+  { name: 'all in on the machines', blurb: 'chips and the people who buy them',
+    mix: { NVDA: 30, AMD: 20, MU: 15, INTC: 15, SNDK: 10 } },
+  { name: 'the boring one', blurb: 'the index, plus a little cash to work with',
+    mix: { SPY: 80 } },
+  { name: 'the famous five', blurb: 'the names your uncle already owns',
+    mix: { AAPL: 18, MSFT: 18, AMZN: 18, GOOGL: 18, META: 18 } },
+  { name: 'the one that goes to space', blurb: 'the private company nobody else lists',
+    mix: { SPCX: 60, TSLA: 25 } },
+];
+
+/* -------- my desk -------- */
+async function paintMe(){
+  if(!me) return;
+  $('me_addr').textContent=me.slice(0,6)+'…'+me.slice(-4);
+  try{
+    const [valHex,drHex,acct]=await Promise.all([
+      call(CONTRACT,SEL.valueOf+pad(me)),
+      call(CONTRACT,SEL.drift+pad(me)).catch(()=>null),
+      readAccount(me,CONTRACT).catch(()=>null)]);
+    const usd=Number(BigInt(valHex))/1e18;
+    $('me_worth').textContent='$'+usd.toFixed(2)+' in your own wallet';
+    const bps=drHex===null?null:parseInt(drHex,16);
+    $('me_drift').textContent=bps===null?'no policy yet':bps+' bps'+(bps>=300?' · a job is posted, a worker is coming':' · inside the line');
+    if(acct&&acct.weights.length){
+      const named=acct.weights.map((w,i)=>[w,i]).filter(([w])=>w>0).sort((a,b)=>b[0]-a[0])
+        .map(([w,i])=>(i===0?'CASH':STOCKS[i-1][0])+' '+(w/100).toFixed(0)+'%');
+      let pol=named.slice(0,4).join(' · ');
+      try{
+        const g=await call(CONTRACT,SEL_GLIDEOF+pad(me));
+        const off2=Number(BigInt('0x'+g.slice(2+64,66+64)))/32;
+        const toLen=Number(BigInt('0x'+g.slice(2+off2*64,66+off2*64)));
+        const end=Number(BigInt('0x'+g.slice(2+3*64,66+3*64)));
+        if(toLen>0) pol+=' · ages until '+new Date(end*1000).getUTCFullYear();
+      }catch(e){}
+      $('me_policy').textContent=pol;
+    } else $('me_policy').textContent='none. adopt one from the shelf, or press setup.';
+    let paid=0,cnt=0;
+    for(const [v,from] of WALLET_VENUES){
+      const logs=await rpc('eth_getLogs',[{address:v,topics:[REB,'0x'+pad(me)],fromBlock:from,toBlock:'latest'}]);
+      cnt+=logs.length; for(const l of logs) paid+=parseInt(l.data.slice(2+128,2+192),16)/1e6;
+    }
+    $('me_paid').textContent=cnt?'$'+paid.toFixed(4)+' across '+cnt+' rebalances':'nothing yet';
+  }catch(e){}
+}
+$('dk_me').onclick=async()=>{openWin('win_me');if(!me){try{await connect();}catch{return;}}paintMe();};
+$('me_manage').onclick=()=>{openWin('win_manage');if(me)paintManage();};
+
+/* -------- the shelf -------- */
+function renderShelf(){
+  const box=$('shelf_rows'); box.innerHTML='';
+  for(const s of SHELF){
+    const row=document.createElement('div'); row.className='frow';
+    const mixTxt=Object.entries(s.mix).map(([k,v])=>k+' '+v).join(' · ');
+    row.innerHTML='<div><b>'+s.name+'</b><br><span class="dim2">'+s.blurb+'. '+mixTxt+'</span></div>';
+    const b=document.createElement('button'); b.className='takebtn'; b.textContent='adopt';
+    b.onclick=()=>adoptOS(s,b);
+    row.appendChild(b); box.appendChild(row);
+  }
+}
+async function adoptOS(s,btn){
+  try{
+    if(!me){await connect();if(!me)return;}
+    if(btn.textContent==='adopt'){btn.textContent='press again';return;}
+    btn.disabled=true;btn.textContent='signing…';
+    const w=new Array(STOCKS.length+1).fill(0);
+    let sum=0;
+    for(const [sym,pct] of Object.entries(s.mix)){
+      const i=STOCKS.findIndex(x=>x[0]===sym);
+      if(i>=0){w[i+1]=pct*100;sum+=pct*100;}
+    }
+    w[0]=10000-sum;
+    const toks=await heldTokens();
+    const allows=await Promise.all(toks.map(allowanceOf));
+    const missing=toks.filter((t,i)=>allows[i]===0n);
+    for(let i=0;i<missing.length;i++){
+      btn.textContent='sig '+(i+1)+'/'+(missing.length+1);
+      await send(missing[i],SEL.approve+pad(CONTRACT)+MAX);
+    }
+    btn.textContent='carving…';
+    const data=SEL.setTarget+pad(0x80)+pad(100)+pad(200)+pad(200000n)+pad(w.length)+w.map(v=>pad(v)).join('');
+    await send(CONTRACT,data);
+    btn.textContent='taken';
+    alertOS('adopted. '+s.name+' is your policy now, in your own wallet, and the firm keeps you on it. change it any time.');
+  }catch(e){btn.disabled=false;btn.textContent='adopt';alertOS('refused: '+(e.message||e).toString().slice(0,90));}
+}
+renderShelf();
+
+/* -------- work completed -------- */
+function renderDone(){
+  const rows=$('done_rows'); if(!workLogs.length){return;}
+  const recent=[...workLogs].sort((a,b)=>parseInt(b.blockNumber,16)-parseInt(a.blockNumber,16)).slice(0,8);
+  rows.innerHTML='';
+  for(const l of recent){
+    const acct='0x'+l.topics[1].slice(26), worker='0x'+l.topics[2].slice(26);
+    const d0=parseInt(l.data.slice(2,66),16), d1=parseInt(l.data.slice(66,130),16), paid=parseInt(l.data.slice(2+128,2+192),16)/1e6;
+    const tr=document.createElement('tr');
+    tr.innerHTML='<td>'+acct.slice(0,6)+'…'+acct.slice(-4)+'</td><td>'+d0+' → '+d1+' bps</td><td><b>$'+paid.toFixed(2)+'</b></td><td class="dim2">'+(worker.toLowerCase()===KEEPER?'the employee':worker.slice(0,6)+'…'+worker.slice(-4))+'</td>';
+    rows.appendChild(tr);
+  }
+}
 </script>
 </body>
 </html>
