@@ -6,6 +6,7 @@
 <title>AUM0 OS</title>
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Silkscreen:wght@400;700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 <style>
 :root{
   --desk:#c6d8c9; --deskline:#bccfc0; --win:#f4f1e6; --ink:#151510; --dim:#6d6f66;
@@ -342,10 +343,17 @@ let me=null;
 async function connect(){
   if(!window.ethereum){
     const here=encodeURIComponent(location.origin);
-    $('alert_msg').innerHTML='no wallet lives in this browser. open this page inside your wallet app and everything works:'
-      +'<div style="display:flex;gap:10px;margin-top:12px;flex-wrap:wrap">'
-      +'<a class="osbtn ok" href="okx://wallet/dapp/url?dappUrl='+here+'">Open in OKX</a>'
-      +'<a class="osbtn ok" href="https://link.metamask.io/dapp/aumzero.com">Open in MetaMask</a></div>';
+    if(matchMedia('(max-width:700px)').matches){
+      $('alert_msg').innerHTML='no wallet lives in this browser. open this page inside your wallet app and everything works:'
+        +'<div style="display:flex;gap:10px;margin-top:12px;flex-wrap:wrap">'
+        +'<a class="osbtn ok" href="okx://wallet/dapp/url?dappUrl='+here+'">Open in OKX</a>'
+        +'<a class="osbtn ok" href="https://link.metamask.io/dapp/aumzero.com">Open in MetaMask</a></div>';
+    } else {
+      $('alert_msg').innerHTML='no wallet extension in this browser. point your phone camera at this and the firm opens in your hand; from there, open it in your wallet app:'
+        +'<div id="qr_box" style="margin:14px auto 4px;width:180px;background:#fff;padding:10px;border:1.5px solid var(--ink);border-radius:6px"></div>';
+      if(window.QRCode) new QRCode(document.getElementById('qr_box'),{text:location.origin,width:160,height:160,correctLevel:QRCode.CorrectLevel.M});
+      else document.getElementById('qr_box').textContent='aumzero.com';
+    }
     openWin('win_alert');
     return;
   }
