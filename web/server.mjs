@@ -17,18 +17,48 @@ const UPSTREAM = process.env.RPC_URL || 'https://rpc.mainnet.chain.robinhood.com
 const FAST = process.env.FAST_RPC_URL || UPSTREAM;
 const LOG_CACHE_MS = 15_000;
 const logCache = new Map();   // request body -> { at, status, text } or an in-flight promise
+let fastDownUntil = 0;                 // a refused dedicated provider rests ten minutes
+const callCache = new Map();           // body -> {at, status, text}: bursts and 429s share answers
+const CALL_CACHE_MS = 4_000;
+// The public node throttles bursts from one address, and a page paint is a
+// burst by nature. Every upstream call walks through this gate one at a
+// time, a step apart, so the node sees a queue instead of a stampede.
+let upstreamQueue = Promise.resolve();
+function upstreamCall(body, headers) {
+  const run = upstreamQueue.then(async () => {
+    const r = await fetch(UPSTREAM, { method: 'POST', headers, body });
+    return { status: r.status, text: await r.text() };
+  });
+  upstreamQueue = run.then(() => new Promise(res => setTimeout(res, 100)), () => new Promise(res => setTimeout(res, 100)));
+  return run;
+}
 async function proxyRpc(body, method) {
   const headers = { 'content-type': 'application/json', 'user-agent': UA };
   if (method !== 'eth_getLogs') {
-    const r = await fetch(FAST, { method: 'POST', headers, body });
-    const text = await r.text();
-    // a dedicated provider out of quota must not take the site down with it:
-    // anything that smells like refusal is retried once on the public node
-    if (r.status !== 200 || text.includes('capacity') || text.includes('exceeded') || text.includes('"error"')) {
-      try { const r2 = await fetch(UPSTREAM, { method: 'POST', headers, body });
-        return { status: r2.status, text: await r2.text() }; } catch {}
+    const hit = callCache.get(body);
+    if (hit && Date.now() - hit.at < CALL_CACHE_MS) return hit;
+    if (callCache.size > 800) callCache.clear();
+    const keep = (out) => { callCache.set(body, out); return out; };
+    if (Date.now() > fastDownUntil) {
+      const r = await fetch(FAST, { method: 'POST', headers, body });
+      const text = await r.text();
+      // a dedicated provider out of quota must not take the site down with
+      // it, and must not be knocked on again while it is refusing
+      if (r.status === 200 && !text.includes('capacity') && !text.includes('exceeded') && !text.includes('"error"')) {
+        return keep({ at: Date.now(), status: r.status, text });
+      }
+      if (FAST !== UPSTREAM) fastDownUntil = Date.now() + 600_000;
     }
-    return { status: r.status, text };
+    // the public node says 429 easily: one more knock after a jittered
+    // pause, then a stale answer beats an error the page would have to hide
+    for (let attempt = 0; attempt < 2; attempt++) {
+      try {
+        const out = await upstreamCall(body, headers);
+        if (out.status === 200 && !out.text.includes('"error"')) return keep({ at: Date.now(), ...out });
+        if (attempt === 1) return hit || { at: 0, ...out };
+      } catch (e) { if (attempt === 1) return hit || { at: 0, status: 502, text: JSON.stringify({ error: String(e.message) }) }; }
+      await new Promise(res => setTimeout(res, 500 + Math.random() * 1000));
+    }
   }
   const hit = logCache.get(body);
   if (hit && hit.then) return hit;                                   // same scan already in flight
@@ -37,9 +67,9 @@ async function proxyRpc(body, method) {
     // the public node says 429 easily; try twice, and if it still refuses,
     // hand out the last good answer rather than an error the page must hide
     for (let attempt = 0; attempt < 2; attempt++) {
-      const r = await fetch(UPSTREAM, { method: 'POST', headers, body });
-      const out = { at: Date.now(), status: r.status, text: await r.text() };
-      if (r.status === 200 && !out.text.includes('"error"')) { logCache.set(body, out); return out; }
+      const up = await upstreamCall(body, headers);
+      const out = { at: Date.now(), ...up };
+      if (up.status === 200 && !up.text.includes('"error"')) { logCache.set(body, out); return out; }
       if (attempt === 0) await new Promise(res => setTimeout(res, 1500));
       else { if (hit && !hit.then) { logCache.set(body, hit); return hit; } logCache.delete(body); return out; }
     }
@@ -50,7 +80,7 @@ async function proxyRpc(body, method) {
 const UA = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36';
 // Only what the page needs; anything else is refused.
 const ALLOW = new Set(['eth_call', 'eth_blockNumber', 'eth_getBalance', 'eth_chainId', 'eth_getLogs']);
-const AUM0S = new Set(['0xe46b6e60c7b2cbc1f9761b3f12a69813093b6dde', '0xcc27dd6fd74210303660643bcf6c9d115443bfca', '0xafd484733f4b23e235bf1825c9ada39368160b03', '0x3484f1cc081a98103ce0e9e42ae96a2a770ecd79', '0xf7dbb9142a194f5f409c2c587cfc559d77c40358', '0x4f08bdc9353060351f95207cd47d67d1cf6e5989']);
+const AUM0S = new Set(['0xe46b6e60c7b2cbc1f9761b3f12a69813093b6dde', '0xcc27dd6fd74210303660643bcf6c9d115443bfca', '0xafd484733f4b23e235bf1825c9ada39368160b03', '0x3484f1cc081a98103ce0e9e42ae96a2a770ecd79', '0xf7dbb9142a194f5f409c2c587cfc559d77c40358', '0x4f08bdc9353060351f95207cd47d67d1cf6e5989', '0x356b8b6ed5cbaaa5879945dacb7dce6408a679b2']);
 // The proxy serves this site only. No CORS headers are ever emitted, so
 // other origins cannot borrow it from a browser; same-origin needs none.
 const SITE_ORIGINS = new Set(['https://aumzero.com', 'https://www.aumzero.com', 'https://aum0-web-production.up.railway.app']);

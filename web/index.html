@@ -13,7 +13,7 @@
   --green:#2f6b46; --mint:#bfe3cf; --pink:#f3d9cf; --red:#e5484d; --live:#d7f0e0;
 }
 *{box-sizing:border-box;margin:0;padding:0}
-html,body{height:100%}
+html{height:100%}
 body{color:var(--ink);font:400 18px/1.5 ui-monospace,"Courier New",Menlo,monospace;
   background:
    repeating-linear-gradient(0deg,var(--deskline) 0 1px,transparent 1px 5px),
@@ -174,6 +174,7 @@ a{color:inherit;text-decoration:none}
 
   <div class="ch-row">
     <div class="ch">Fund: World edition <span style="color:var(--dim)">0x356B…79b2</span> <span class="live">LIVE</span></div>
+    <div class="ch" id="mascot_ca" title="0xe7CFbf084589b73A3FF74E9819Dd3D28ee1E05A9" style="flex:0 0 auto;cursor:pointer">CA <span style="color:var(--dim)">0xe7CF…E05A9</span></div>
     <div class="vol">drift <div class="vu"></div><b id="s_drift">…</b></div>
   </div>
 </div>
@@ -572,6 +573,12 @@ $('dk_jobs').onclick=()=>{openWin('win_jobs');loadJobs();renderDone();};
 $('dk_pay').onclick=()=>{openWin('win_pay');paintPaystub();};
 $('dk_mandate').onclick=async()=>{openWin('win_mandate');if(me)paintMandate();};
 $('dk_policy').onclick=()=>alertOS('your policy lives on the floor for now: carve weights, band and bounty there, or use the setup assistant for the one-press version.');
+$('mascot_ca').onclick=async()=>{
+  try{await navigator.clipboard.writeText('0xe7CFbf084589b73A3FF74E9819Dd3D28ee1E05A9');}catch{}
+  const el=$('mascot_ca');
+  el.textContent='copied';
+  setTimeout(()=>{el.innerHTML='CA <span style="color:var(--dim)">0xe7CF…E05A9</span>';},1200);
+};
 $('lnk_manage').onclick=async(e)=>{e.preventDefault();openWin('win_manage');if(!me){try{await connect();}catch{}}if(me)paintManage();};
 $('lnk_login').onclick=async(e)=>{e.preventDefault();try{await connect();if(!me)return;alertOS('connected. the firm knows you by your address and nothing else.');}catch(err){alertOS((err.message||err).toString().slice(0,90));}};
 

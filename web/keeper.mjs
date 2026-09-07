@@ -13,7 +13,7 @@ const CONTRACTS = [
   { addr: '0xcc27Dd6FD74210303660643bcf6c9d115443bFcA', fromBlock: 50820000 },                // custody, 15 stocks
   { addr: '0xE46B6e60c7b2CbC1f9761B3f12a69813093B6dde', fromBlock: 50600000 },                // custody, NVDA only
 ];
-const POLL_MS = 60_000;
+const POLL_MS = 240_000;   // the patrol shares one exit with every visitor's RPC; walk, don't sprint
 const MIN_ACT_BPS = 300;      // don't grind dust: act only on real drift
 const MIN_VALUE_USD = 0.5;    // ignore empty accounts
 const MIN_LEG_USD = 0.05;     // skip legs the pool fee would eat
