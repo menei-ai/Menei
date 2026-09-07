@@ -117,7 +117,7 @@ a{color:inherit;text-decoration:none}
   .dockin{padding-bottom:env(safe-area-inset-bottom)}
 }
 
-.window.sub{position:absolute;margin:0;padding:8px 10px 10px;width:auto;z-index:9}
+.window.sub{position:absolute;margin:0;padding:8px 10px 10px;width:auto;z-index:9;max-height:calc(100vh - 260px);overflow:auto}
 .window.alert{border-width:2px}
 .pane{border:1.5px solid var(--ink);border-radius:4px;background:#fdfcf6;padding:14px;margin-top:0;font-size:18px}
 .pane.mono{font-size:18px}
@@ -173,7 +173,7 @@ a{color:inherit;text-decoration:none}
   </div>
 
   <div class="ch-row">
-    <div class="ch">Fund: Pension edition <span style="color:var(--dim)">0x4f08…5989</span> <span class="live">LIVE</span></div>
+    <div class="ch">Fund: World edition <span style="color:var(--dim)">0x356B…79b2</span> <span class="live">LIVE</span></div>
     <div class="vol">drift <div class="vu"></div><b id="s_drift">…</b></div>
   </div>
 </div>
@@ -195,7 +195,8 @@ a{color:inherit;text-decoration:none}
 <div class="window sub" id="win_funds" hidden style="left:6%;top:120px;width:520px">
   <div class="titlebar drag"><span class="tb-btn tb-x" data-close="win_funds"></span><span class="title px">FUNDS</span></div>
   <div class="pane">
-    <div class="frow"><div><b>Pension</b> <span class="new px">NEW</span><br><span class="dim2">a policy that ages. sign once, forty years.</span></div><a target="_blank" rel="noopener" href="https://explorer.mainnet.chain.robinhood.com/address/0x4f08bdC9353060351f95207CD47D67D1cF6e5989">0x4f08…5989</a></div>
+    <div class="frow"><div><b>World</b> <span class="new px">NEW</span><br><span class="dim2">anyone publishes a policy, anyone follows it. authors earn a royalty.</span></div><a target="_blank" rel="noopener" href="https://explorer.mainnet.chain.robinhood.com/address/0x356B8b6ed5CBAaa5879945dACb7Dce6408a679b2">0x356B…79b2</a></div>
+    <div class="frow"><div><b>Pension</b><br><span class="dim2">a policy that ages. sign once, forty years.</span></div><a target="_blank" rel="noopener" href="https://explorer.mainnet.chain.robinhood.com/address/0x4f08bdC9353060351f95207CD47D67D1cF6e5989">0x4f08…5989</a></div>
     <div class="frow"><div><b>Desk</b><br><span class="dim2">two wallets trade with each other at the feed.</span></div><a target="_blank" rel="noopener" href="https://explorer.mainnet.chain.robinhood.com/address/0xf7DBb9142A194F5f409c2c587cFC559D77C40358">0xf7DB…0358</a></div>
     <div class="frow"><div><b>Bid</b><br><span class="dim2">workers are paid for the price they deliver.</span></div><a target="_blank" rel="noopener" href="https://explorer.mainnet.chain.robinhood.com/address/0xb0C34AC5e846e0159f711Db84802D512E916A51F">0xb0C3…A51F</a></div>
     <div class="frow"><div><b>Wallet</b><br><span class="dim2">the original. twenty six assets, three walls.</span></div><a target="_blank" rel="noopener" href="https://explorer.mainnet.chain.robinhood.com/address/0x3484F1cC081A98103CE0E9E42AE96a2A770eCd79">0x3484…Cd79</a></div>
@@ -323,11 +324,12 @@ const REB='0xbecdda7c726841dea88e1495b6f401a1d64029ba261415622f400509cf097b35';
 const TARGETSET='0xb8766537c154c2943c70a08668e5bbee5aa95bb3a80803f9c11d0b49b846fb87';
 const USDG='0x5fc5360D0400a0Fd4f2af552ADD042D716F1d168';
 const KEEPER='0x3c71044dca7aa1eb401913a2f96277abe8c019a4';
-const CONTRACT='0x4f08bdC9353060351f95207CD47D67D1cF6e5989';
+const CONTRACT='0x356B8b6ed5CBAaa5879945dACb7Dce6408a679b2';
 const CHAIN_HEX='0x1237';
 const EXPLORER='https://explorer.mainnet.chain.robinhood.com';
 const WALLET_VENUES=[
- [CONTRACT,'0x353ef82'],
+ [CONTRACT,'0x364177c'],
+ ['0x4f08bdC9353060351f95207CD47D67D1cF6e5989','0x353ef82'],
  ['0xf7DBb9142A194F5f409c2c587cFC559D77C40358','0x34f66fd'],
  ['0x3484F1cC081A98103CE0E9E42AE96a2A770eCd79','0x334a3f8'],
  ['0xaFd484733f4B23e235bf1825c9AdA39368160B03','0x3096d00'],

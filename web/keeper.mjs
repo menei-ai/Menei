@@ -5,8 +5,9 @@ import { JsonRpcProvider, FetchRequest, Wallet, Contract } from 'ethers';
 
 const RPC = process.env.RPC_URL || 'https://rpc.mainnet.chain.robinhood.com';
 const CONTRACTS = [
-  { addr: '0x4f08bdC9353060351f95207CD47D67D1cF6e5989', fromBlock: 55832000, wallet: true, cross: true },  // pension: the desk, plus laws that age
-  { addr: '0xf7DBb9142A194F5f409c2c587cFC559D77C40358', fromBlock: 55535000, wallet: true, cross: true },  // desk: 26 assets, plus the internal cross
+  { addr: '0x356B8b6ed5CBAaa5879945dACb7Dce6408a679b2', fromBlock: 56891260, wallet: true, cross: true, fills: true },  // world: published policies, followers, royalties
+  { addr: '0x4f08bdC9353060351f95207CD47D67D1cF6e5989', fromBlock: 55832000, wallet: true, cross: true, fills: true },  // pension: the desk, plus laws that age
+  { addr: '0xf7DBb9142A194F5f409c2c587cFC559D77C40358', fromBlock: 55535000, wallet: true, cross: true, fills: true },  // desk: 26 assets, plus the internal cross
   { addr: '0x3484F1cC081A98103CE0E9E42AE96a2A770eCd79', fromBlock: 53775000, wallet: true },  // v4: 26 assets, stocks through treasuries
   { addr: '0xaFd484733f4B23e235bf1825c9AdA39368160B03', fromBlock: 50946000, wallet: true },  // v3: fifteen stocks
   { addr: '0xcc27Dd6FD74210303660643bcf6c9d115443bFcA', fromBlock: 50820000 },                // custody, 15 stocks
@@ -45,6 +46,7 @@ const ABI = [
   'function assetCount() view returns (uint256)',
   'function assetAt(uint256) view returns (address token, address feed, uint24 poolFee, uint8 decimals)',
   'function rebalance(address user, (uint256 sellAsset, uint256 buyAsset, uint256 amountIn)[] trades)',
+  'function rebalance(address user, (uint256 sellAsset, uint256 buyAsset, uint256 amountIn, uint8 fill, uint256 amountOut)[] trades)',
   'function cross(address seller, address buyer, uint256 asset, uint256 amount)',
   'event TargetSet(address indexed user, uint16[] targetBps, uint16 minDriftBps, uint16 bandBps, uint128 bountyQuote)',
 ];
@@ -360,8 +362,18 @@ async function serveOne(v, user, px, awake) {
     const raw = v.wallet ? await v.c.heldBy(user, i) : await v.c.balanceOf(user, i);
     balances.push(Number(raw) / 10 ** (i === 0 ? 6 : 18));
   }
-  const plan = planTrades(acct.targetBps, balances, px, balances[0], awake);
+  let plan = planTrades(acct.targetBps, balances, px, balances[0], awake);
   if (!plan) return;
+
+  // The public node refuses to simulate a heavy pass, so the desk works in
+  // small strokes: at most two legs a tick, and the next tick replans from
+  // what actually landed. A truncated plan keeps no buys, since their budget
+  // counted on cash the missing sells were going to free.
+  if (plan.trades.length > 2) {
+    let chunk = plan.trades.slice(0, 2);
+    if (chunk.some(t => t.sellAsset === 0n)) chunk = chunk.filter(t => t.sellAsset !== 0n);
+    plan = { ...plan, trades: chunk };
+  }
 
   const expectedPay = Number(acct.bountyQuote) / 1e6 * drift / 10000;
   if (expectedPay > plan.cashAfter) { log(user, 'skipped: bounty exceeds cash (broken policy)'); return; }
@@ -370,8 +382,29 @@ async function serveOne(v, user, px, awake) {
   // would revert is a plan that only burns gas, and blind sends were how the
   // wallet bled on 2026-09-06. Tidying its own desk stays free of the profit
   // test; a stranger's job still has to pay for itself at 1.5x the gas.
-  const est = await v.c.rebalance.estimateGas(user, plan.trades).catch(() => null);
-  if (est === null) { log(user, 'skipped: the trade would revert as planned'); return; }
+  // The editions since the bid take five-field trades (fill and amountOut on
+  // top); the older venues take three. Sending the wrong shape calls a
+  // function that does not exist and reads as a bare revert.
+  const trades = v.fills ? plan.trades.map(t => ({ ...t, fill: 0, amountOut: 0n })) : plan.trades;
+  const reb = v.fills
+    ? v.c['rebalance(address,(uint256,uint256,uint256,uint8,uint256)[])']
+    : v.c['rebalance(address,(uint256,uint256,uint256)[])'];
+
+  // The estimate is only a preflight; the send uses its own gas limit. When
+  // the node will not estimate, the plain call decides: only a call that
+  // also reverts is a bad plan.
+  let est = await reb.estimateGas(user, trades).catch(() => null);
+  if (est === null) {
+    try {
+      est = 600_000n + 400_000n * BigInt(trades.length);
+      await reb.staticCall(user, trades, { gasLimit: est });
+    } catch (e) {
+      log(user, e?.code === 'CALL_EXCEPTION'
+        ? `skipped on ${v.addr.slice(0, 8)}…: the trade would revert as planned (${e?.data?.slice(0, 10) || 'no data'})`
+        : `skipped on ${v.addr.slice(0, 8)}…: the node would not answer (${e?.shortMessage || e?.code || 'rpc'})`);
+      return;
+    }
+  }
   if (user.toLowerCase() !== wallet.address.toLowerCase()) {
     const [fee, px] = await Promise.all([provider.getFeeData(), ethUsd()]);
     const costUsd = Number(est) * Number(fee.gasPrice) / 1e18 * px;
@@ -383,7 +416,9 @@ async function serveOne(v, user, px, awake) {
 
   if (DRY) { log(user, `DRY: drift ${drift}, ${plan.trades.length} legs, pay ~$${expectedPay.toFixed(2)}`); return; }
 
-  const tx = await v.c.rebalance(user, plan.trades, { gasLimit: 600_000 + 400_000 * plan.trades.length });
+  // send with what the preflight measured, padded; the old fixed formula
+  // starved the 27-asset editions mid-pass
+  const tx = await reb.send(user, trades, { gasLimit: est * 13n / 10n });
   const rc = await tx.wait();
   sentToday++;
   log(user, `rebalanced on ${v.addr.slice(0, 8)}…. drift was ${drift}, ${plan.trades.length} legs, pay ~$${expectedPay.toFixed(2)}, gas ${rc.gasUsed}, tx ${tx.hash}`);
