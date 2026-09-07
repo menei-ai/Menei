@@ -340,7 +340,15 @@ const rpc=async(m,p)=>{const r=await fetch('/api/rpc',{method:'POST',headers:{'c
 const call=(to,data)=>rpc('eth_call',[{to,data},'latest']);
 let me=null;
 async function connect(){
-  if(!window.ethereum) return alertOS('no wallet found on this computer. install one and come back; the employee cannot hire you a wallet.');
+  if(!window.ethereum){
+    const here=encodeURIComponent(location.origin);
+    $('alert_msg').innerHTML='no wallet lives in this browser. open this page inside your wallet app and everything works:'
+      +'<div style="display:flex;gap:10px;margin-top:12px;flex-wrap:wrap">'
+      +'<a class="osbtn ok" href="okx://wallet/dapp/url?dappUrl='+here+'">Open in OKX</a>'
+      +'<a class="osbtn ok" href="https://link.metamask.io/dapp/aumzero.com">Open in MetaMask</a></div>';
+    openWin('win_alert');
+    return;
+  }
   const [a]=await window.ethereum.request({method:'eth_requestAccounts'});
   try{await window.ethereum.request({method:'wallet_switchEthereumChain',params:[{chainId:CHAIN_HEX}]});}
   catch(e){await window.ethereum.request({method:'wallet_addEthereumChain',params:[{chainId:CHAIN_HEX,chainName:'Robinhood Chain',nativeCurrency:{name:'Ether',symbol:'ETH',decimals:18},rpcUrls:['https://rpc.mainnet.chain.robinhood.com'],blockExplorerUrls:[EXPLORER]}]});}
