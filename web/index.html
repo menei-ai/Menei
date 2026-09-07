@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>AUM0 OS</title>
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Silkscreen:wght@400;700&display=swap" rel="stylesheet">
@@ -99,7 +99,21 @@ a{color:inherit;text-decoration:none}
   .di{flex:0 0 auto;width:auto;min-width:96px;font-size:18px;padding:12px 14px 10px}
   .di .ic{font-size:24px;margin-bottom:4px}
   /* sub windows become sheets */
-  .window.sub{position:fixed;left:2vw!important;right:2vw!important;top:12px!important;bottom:auto;transform:none!important;width:96vw!important;max-height:78vh;overflow:auto;margin:0}
+  .window.sub{position:fixed;left:2vw!important;right:2vw!important;top:12px!important;bottom:auto;transform:none!important;width:96vw!important;max-height:80vh;overflow:auto;margin:0;z-index:30}
+  /* fingers need bigger targets than a mouse */
+  .tb-btn{width:26px;height:26px;border-radius:5px}
+  .tb-x::after{inset:1px 0 0 5px;font-size:17px}
+  .titlebar{padding-bottom:10px}
+  /* wide tables scroll inside their pane, never the page */
+  #win_jobs .pane{overflow-x:auto}
+  #win_jobs .jt{min-width:540px}
+  .frow{flex-wrap:wrap}
+  .osbtn{padding:12px 20px}
+  .takebtn{padding:10px 16px}
+  /* the shelf hints that it slides */
+  .dock::after{content:'';position:absolute;right:0;top:0;bottom:0;width:42px;pointer-events:none;
+    background:linear-gradient(90deg,rgba(244,241,230,0),rgba(244,241,230,.95))}
+  .dockin{padding-bottom:env(safe-area-inset-bottom)}
 }
 
 .window.sub{position:absolute;margin:0;padding:8px 10px 10px;width:auto;z-index:9}
@@ -355,6 +369,7 @@ document.querySelectorAll('.window.sub').forEach(w=>{
   w.addEventListener('pointerdown',()=>w.style.zIndex=++zTop);
   const bar=w.querySelector('.drag'); if(!bar) return;
   bar.addEventListener('pointerdown',ev=>{
+    if(matchMedia('(max-width:700px)').matches)return;
     if(ev.target.closest('[data-close]'))return;
     const r=w.getBoundingClientRect(),dx=ev.clientX-r.left,dy=ev.clientY-r.top;
     w.style.left=r.left+'px';w.style.top=r.top+'px';w.style.right='auto';w.style.transform='none';
