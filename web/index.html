@@ -571,7 +571,7 @@ $('dk_pay').onclick=()=>{openWin('win_pay');paintPaystub();};
 $('dk_mandate').onclick=async()=>{openWin('win_mandate');if(me)paintMandate();};
 $('dk_policy').onclick=()=>alertOS('your policy lives on the floor for now: carve weights, band and bounty there, or use the setup assistant for the one-press version.');
 $('lnk_manage').onclick=async(e)=>{e.preventDefault();openWin('win_manage');if(!me){try{await connect();}catch{}}if(me)paintManage();};
-$('lnk_login').onclick=async(e)=>{e.preventDefault();try{await connect();alertOS('connected. the firm knows you by your address and nothing else.');}catch(err){alertOS((err.message||err).toString().slice(0,90));}};
+$('lnk_login').onclick=async(e)=>{e.preventDefault();try{await connect();if(!me)return;alertOS('connected. the firm knows you by your address and nothing else.');}catch(err){alertOS((err.message||err).toString().slice(0,90));}};
 
 const SEL_GLIDEOF='0x5a6250d1';
 const SHELF = [
