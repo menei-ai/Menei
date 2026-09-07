@@ -82,9 +82,11 @@ let keeper = null, shaking = false;
 // One slow feed, or one rate-limited minute, should not empty the shelf: a
 // stale price is better than none, and a missing one keeps its last value.
 async function readFeed(addr) {
-  for (let attempt = 0; attempt < 2; attempt++) {
+  // first the fast lane, then the public node: a provider out of quota must
+  // not blind the whole venue
+  for (const host of [FAST, UPSTREAM]) {
     try {
-      const r = await fetch(FAST, { method: 'POST', headers: { 'content-type': 'application/json', 'user-agent': UA },
+      const r = await fetch(host, { method: 'POST', headers: { 'content-type': 'application/json', 'user-agent': UA },
         body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'eth_call', params: [{ to: addr, data: '0xfeaf968c' }, 'latest'] }) });
       const j = await r.json();
       if (j.result) return Number(BigInt('0x' + j.result.slice(2 + 64, 2 + 128))) / 1e8;
