@@ -344,23 +344,20 @@ document.querySelectorAll('.window.sub').forEach(w=>{
 const d=new Date();
 $('osdate').textContent=d.toUTCString().slice(0,3).toUpperCase()+' '+d.getUTCDate()+' '+d.toUTCString().slice(8,11).toUpperCase()+' '+d.getUTCFullYear();
 let workLogs=[];
+let statUsers=[];
 (async()=>{
   try{
-    const head=parseInt(await rpc('eth_blockNumber',[]),16);
-    $('osblock').textContent='block '+head.toLocaleString();
-    let jobs=0,fees=0,last=null;
-    for(const [a,from] of ALL_VENUES){
-      const logs=await rpc('eth_getLogs',[{address:a,topics:[REB],fromBlock:from,toBlock:'0x'+head.toString(16)}]);
-      jobs+=logs.length; workLogs.push(...logs);
-      for(const l of logs){fees+=parseInt(l.data.slice(2+128,2+192),16)/1e6;
-        const b=parseInt(l.blockNumber,16); if(!last||b>last.b) last={b,t:'drift '+parseInt(l.data.slice(2,66),16)+' → '+parseInt(l.data.slice(66,130),16)+' bps'};}
-    }
-    $('s_jobs').textContent=jobs; $('s_fees').textContent='$'+fees.toFixed(2);
-    if(last) $('lastjob').textContent='last job — '+last.t+', paid by the wallet it walked home';
+    const st=await (await fetch('/api/stats')).json();
+    if(st.error) throw new Error(st.error);
+    $('osblock').textContent='block '+st.block.toLocaleString();
+    $('s_jobs').textContent=st.jobs; $('s_fees').textContent='$'+st.fees.toFixed(2);
+    if(st.recent.length){const l=st.recent[0];$('lastjob').textContent='last job — drift '+l.d0+' → '+l.d1+' bps, paid by the wallet it walked home';}
+    workLogs=st.recent; statUsers=st.users;
+    $('ps_earned').textContent='$'+st.keeperPaid.toFixed(2)+' across '+st.keeperJobs+' jobs';
+    renderDone();
     const dr=await call(CONTRACT,SEL.drift+pad(KEEPER));
     $('s_drift').textContent=parseInt(dr,16)+' bps';
     paintPaystub();
-    renderDone();
   }catch(e){}
 })();
 
@@ -371,9 +368,6 @@ async function paintPaystub(){
     const gas=Number(BigInt(gasHex))/1e18,wages=Number(BigInt(wagesHex))/1e6;
     $('ps_gas').textContent=gas.toFixed(4)+' ETH';
     $('ps_wages').textContent=wages.toFixed(2)+' USDG';
-    const mine=workLogs.filter(l=>('0x'+l.topics[2].slice(26)).toLowerCase()===KEEPER);
-    const paid=mine.reduce((s,l)=>s+parseInt(l.data.slice(2+128,2+192),16)/1e6,0);
-    $('ps_earned').textContent='$'+paid.toFixed(2)+' across '+mine.length+' jobs';
   }catch(e){}
 }
 
@@ -408,11 +402,9 @@ async function planTrades(a){
 async function loadJobs(){
   const rows=$('jobs_rows');
   try{
+    if(!statUsers.length){const st=await (await fetch('/api/stats')).json();statUsers=st.users||[];workLogs=st.recent||workLogs;}
     const accounts=[];
-    for(const [venue,from] of WALLET_VENUES){
-      const logs=await rpc('eth_getLogs',[{address:venue,topics:[TARGETSET],fromBlock:from,toBlock:'latest'}]);
-      for(const u of [...new Set(logs.map(l=>'0x'+l.topics[1].slice(26)))]) accounts.push(await readAccount(u,venue));
-    }
+    for(const [venue,u] of statUsers) accounts.push(await readAccount(u,venue));
     const open=accounts.filter(a=>a.value>0.5&&a.drift!==null&&a.drift>=Math.max(a.minDrift,300));
     open.sort((x,y)=>y.bounty*y.drift-x.bounty*x.drift);
     rows.innerHTML='';
@@ -624,13 +616,10 @@ renderShelf();
 /* -------- work completed -------- */
 function renderDone(){
   const rows=$('done_rows'); if(!workLogs.length){return;}
-  const recent=[...workLogs].sort((a,b)=>parseInt(b.blockNumber,16)-parseInt(a.blockNumber,16)).slice(0,8);
   rows.innerHTML='';
-  for(const l of recent){
-    const acct='0x'+l.topics[1].slice(26), worker='0x'+l.topics[2].slice(26);
-    const d0=parseInt(l.data.slice(2,66),16), d1=parseInt(l.data.slice(66,130),16), paid=parseInt(l.data.slice(2+128,2+192),16)/1e6;
+  for(const l of workLogs){
     const tr=document.createElement('tr');
-    tr.innerHTML='<td>'+acct.slice(0,6)+'…'+acct.slice(-4)+'</td><td>'+d0+' → '+d1+' bps</td><td><b>$'+paid.toFixed(2)+'</b></td><td class="dim2">'+(worker.toLowerCase()===KEEPER?'the employee':worker.slice(0,6)+'…'+worker.slice(-4))+'</td>';
+    tr.innerHTML='<td>'+l.acct.slice(0,6)+'…'+l.acct.slice(-4)+'</td><td>'+l.d0+' → '+l.d1+' bps</td><td><b>$'+l.paid.toFixed(2)+'</b></td><td class="dim2">'+(l.worker===KEEPER?'the employee':l.worker.slice(0,6)+'…'+l.worker.slice(-4))+'</td>';
     rows.appendChild(tr);
   }
 }

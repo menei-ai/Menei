@@ -21,7 +21,14 @@ async function proxyRpc(body, method) {
   const headers = { 'content-type': 'application/json', 'user-agent': UA };
   if (method !== 'eth_getLogs') {
     const r = await fetch(FAST, { method: 'POST', headers, body });
-    return { status: r.status, text: await r.text() };
+    const text = await r.text();
+    // a dedicated provider out of quota must not take the site down with it:
+    // anything that smells like refusal is retried once on the public node
+    if (r.status !== 200 || text.includes('capacity') || text.includes('exceeded') || text.includes('"error"')) {
+      try { const r2 = await fetch(UPSTREAM, { method: 'POST', headers, body });
+        return { status: r2.status, text: await r2.text() }; } catch {}
+    }
+    return { status: r.status, text };
   }
   const hit = logCache.get(body);
   if (hit && hit.then) return hit;                                   // same scan already in flight
@@ -125,6 +132,67 @@ function sendText(req, res, status, headers, body) {
   }
 }
 
+// -- the firm's numbers, read once and handed to everyone --------------------
+// Every visitor used to scan six venues' full history for the same answer,
+// which is how a month of provider quota died in a day. The server scans once
+// every ten minutes and every page shares the copy.
+const REB_TOPIC = '0xbecdda7c726841dea88e1495b6f401a1d64029ba261415622f400509cf097b35';
+const TS_TOPIC = '0xb8766537c154c2943c70a08668e5bbee5aa95bb3a80803f9c11d0b49b846fb87';
+const STAT_VENUES = [
+  ['0x4f08bdC9353060351f95207CD47D67D1cF6e5989', '0x353ef82', true],
+  ['0xf7DBb9142A194F5f409c2c587cFC559D77C40358', '0x34f66fd', true],
+  ['0x3484F1cC081A98103CE0E9E42AE96a2A770eCd79', '0x334a3f8', true],
+  ['0xaFd484733f4B23e235bf1825c9AdA39368160B03', '0x3096d00', true],
+  ['0xcc27Dd6FD74210303660643bcf6c9d115443bFcA', '0x3077e40', false],
+  ['0xE46B6e60c7b2CbC1f9761B3f12a69813093B6dde', '0x3042380', false],
+];
+const KEEPER_ADDR = '0x3c71044dca7aa1eb401913a2f96277abe8c019a4';
+let statCache = { at: 0, body: null };
+let statBusy = null;
+let statFailAt = 0;
+async function upRpc(method, params) {
+  const body = JSON.stringify({ jsonrpc: '2.0', id: 1, method, params });
+  const out = await proxyRpc(body, method);
+  const j = JSON.parse(out.text);
+  if (j.error) throw new Error(j.error.message || 'rpc');
+  return j.result;
+}
+async function buildStats() {
+  const head = parseInt(await upRpc('eth_blockNumber', []), 16);
+  let jobs = 0, fees = 0, keeperPaid = 0, keeperJobs = 0;
+  const recent = [], users = [];
+  for (const [addr, from, wallet] of STAT_VENUES) {
+    await new Promise(r => setTimeout(r, 400));   // the public node dislikes bursts
+    const logs = await upRpc('eth_getLogs', [{ address: addr, topics: [REB_TOPIC], fromBlock: from, toBlock: '0x' + head.toString(16) }]);
+    jobs += logs.length;
+    for (const l of logs) {
+      const paid = parseInt(l.data.slice(2 + 128, 2 + 192), 16) / 1e6;
+      fees += paid;
+      const worker = ('0x' + l.topics[2].slice(26)).toLowerCase();
+      if (worker === KEEPER_ADDR) { keeperPaid += paid; keeperJobs++; }
+      recent.push({ b: parseInt(l.blockNumber, 16), acct: '0x' + l.topics[1].slice(26), worker,
+        d0: parseInt(l.data.slice(2, 66), 16), d1: parseInt(l.data.slice(66, 130), 16), paid });
+    }
+    if (wallet) {
+      const ts = await upRpc('eth_getLogs', [{ address: addr, topics: [TS_TOPIC], fromBlock: from, toBlock: '0x' + head.toString(16) }]);
+      for (const u of new Set(ts.map(l => '0x' + l.topics[1].slice(26)))) users.push([addr, u]);
+    }
+  }
+  recent.sort((a, b) => b.b - a.b);
+  return JSON.stringify({ block: head, jobs, fees, keeperPaid, keeperJobs, recent: recent.slice(0, 8), users });
+}
+async function statsBody() {
+  if (statCache.body && Date.now() - statCache.at < 600_000) return statCache.body;
+  if (statBusy) return statCache.body || statBusy;
+  // a failed build rests a minute instead of hammering a throttled node
+  if (!statCache.body && Date.now() - statFailAt < 60_000) return JSON.stringify({ error: 'the chain is busy, numbers follow' });
+  statBusy = buildStats()
+    .then(b => { statCache = { at: Date.now(), body: b }; return b; })
+    .catch(e => { statFailAt = Date.now(); console.log('[stats] build failed:', String(e.message).slice(0,60)); return statCache.body || JSON.stringify({ error: String(e.message).slice(0, 80) }); })
+    .finally(() => { statBusy = null; });
+  return statCache.body || statBusy;
+}
+
 http.createServer(async (req, res) => {
   // -- RPC proxy ----------------------------------------------------------
   if (req.url === '/api/rpc') {
@@ -149,11 +217,18 @@ http.createServer(async (req, res) => {
     return;
   }
 
-  // -- cached feed prices -------------------------------------------------
+
+
+// -- cached feed prices -------------------------------------------------
   // -- the demonstration --------------------------------------------------
   // A visitor may knock the employee's own demo wallet off its law. One real
   // swap on a real pool, then the employee stands back for a minute so that
   // anyone who wants the bounty can take the job first.
+  if (req.url === '/api/stats') {
+    const body = await statsBody();
+    return sendText(req, res, 200, { 'content-type': 'application/json', 'cache-control': 'public, max-age=60' }, body);
+  }
+
   if (req.url === '/api/shake') {
     const origin = req.headers.origin;
     if (origin && !SITE_ORIGINS.has(origin) && !isLocal(origin)) {
