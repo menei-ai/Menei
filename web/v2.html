@@ -76,7 +76,32 @@ a{color:inherit;text-decoration:none}
 .di:first-child{border-left:none}
 .di:hover{background:#e9e5d3}
 .di .ic{font-size:30px;line-height:1.2;display:block;margin-bottom:6px}
-@media (max-width:900px){.di{width:84px;font-size:15px}.window{margin-top:120px}}
+@media (max-width:700px){
+  /* the chrome stacks into strips */
+  .bar{position:static;flex-direction:column}
+  .chip{border-left:none;border-right:none;width:100%;justify-content:center}
+  .chip.left .sq{margin:-10px 0 -10px 0}
+  /* the window breathes inside the phone */
+  .window{margin:18px 0 210px;width:96vw;padding:8px}
+  .screen{height:300px}
+  .screen img{width:210px}
+  .sc-bot{gap:8px}
+  .sc-bot span:first-child{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .sc-bot span:last-child{white-space:nowrap}
+  .st-row{flex-wrap:wrap}
+  .stopped{flex:1 1 100%}
+  .k-btn{flex:1 1 40%}
+  .ch-row{flex-direction:column}
+  .vol{width:100%}
+  /* the dock becomes a grid */
+  .dock{left:0;right:0;transform:none;width:100%}
+  .dockin{width:100%;border-radius:0;flex-wrap:wrap}
+  .di{width:33.34%;border-top:1.5px solid var(--ink);font-size:16px;padding:10px 4px}
+  .di:nth-child(-n+3){border-top:none}
+  .di .ic{font-size:26px}
+  /* sub windows become sheets */
+  .window.sub{position:fixed;left:2vw!important;right:2vw!important;top:12px!important;bottom:auto;transform:none!important;width:96vw!important;max-height:78vh;overflow:auto;margin:0}
+}
 
 .window.sub{position:absolute;margin:0;padding:8px 10px 10px;width:auto;z-index:9}
 .window.alert{border-width:2px}
