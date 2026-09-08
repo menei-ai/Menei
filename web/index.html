@@ -210,6 +210,16 @@ a{color:inherit;text-decoration:none}
   </div>
 </div>
 
+<div class="window sub" id="win_policy" hidden style="left:8%;top:110px;width:660px">
+  <div class="titlebar drag"><span class="tb-btn tb-x" data-close="win_policy"></span><span class="title px">POLICY BOARD — ANYONE IS A MANAGER</span></div>
+  <div class="pane">
+    <div class="dim2" style="margin-bottom:10px">on Wall Street a managed account is a rich man's product, with a six figure minimum. here anyone publishes an allocation under their own address, anyone follows it with one signature keeping their own assets, and the author earns a royalty out of the work their policy makes. the minimum is zero.</div>
+    <table class="jt"><thead><tr><th>#</th><th>manager</th><th>allocation</th><th>royalty</th><th>following</th></tr></thead>
+    <tbody id="policy_rows"><tr><td colspan="5" class="dim2">reading the chain…</td></tr></tbody></table>
+    <div class="dim2" id="policy_msg" style="margin-top:10px"></div>
+  </div>
+</div>
+
 <div class="window sub" id="win_jobs" hidden style="right:4%;top:130px;width:640px">
   <div class="titlebar drag"><span class="tb-btn tb-x" data-close="win_jobs"></span><span class="title px">CAREERS — OPEN POSITIONS</span></div>
   <div class="pane">
@@ -576,7 +586,34 @@ $('dk_funds').onclick=()=>openWin('win_funds');
 $('dk_jobs').onclick=()=>{openWin('win_jobs');loadJobs();renderDone();};
 $('dk_pay').onclick=()=>{openWin('win_pay');paintPaystub();};
 $('dk_mandate').onclick=async()=>{openWin('win_mandate');if(me)paintMandate();};
-$('dk_policy').onclick=()=>alertOS('your policy lives on the floor for now: carve weights, band and bounty there, or use the setup assistant for the one-press version.');
+$('dk_policy').onclick=()=>{openWin('win_policy');loadPolicies();};
+const SEL_POLICYCOUNT='0xde54d429', SEL_POLICYAT='0xb9a7f076';
+async function loadPolicies(){
+  const rows=$('policy_rows');
+  try{
+    const cnt=Number(BigInt(await call(CONTRACT,SEL_POLICYCOUNT)));
+    if(!cnt){rows.innerHTML='<tr><td colspan="5" class="dim2">no policy published yet. be the first: publish on the floor.</td></tr>';return;}
+    const out=[];
+    for(let id=1;id<=cnt;id++){
+      const r=await call(CONTRACT,SEL_POLICYAT+pad(id));
+      const author='0x'+r.slice(26,66);
+      const off=Number(BigInt('0x'+r.slice(66,130)))/32;
+      const roy=Number(BigInt('0x'+r.slice(130,194)));
+      const followers=Number(BigInt('0x'+r.slice(194,258)));
+      const retired=BigInt('0x'+r.slice(258,322))===1n;
+      const n=Number(BigInt('0x'+r.slice(2+off*64,66+off*64)));
+      const w=[];for(let i=0;i<n;i++)w.push(Number(BigInt('0x'+r.slice(2+(off+1+i)*64,66+(off+1+i)*64))));
+      const mix=w.map((v,i)=>[v,i]).filter(([v])=>v>0).sort((a,b)=>b[0]-a[0])
+        .map(([v,i])=>(i===0?'CASH':STOCKS[i-1][0])+' '+(v/100).toFixed(0)+'%').join(' · ');
+      out.push({id,author,mix,roy,followers,retired});
+    }
+    rows.innerHTML=out.map(p=>'<tr'+(p.retired?' style="opacity:.5"':'')+'><td>'+p.id+'</td>'
+      +'<td><a target="_blank" rel="noopener" href="'+EXPLORER+'/address/'+p.author+'">'+p.author.slice(0,6)+'…'+p.author.slice(-4)+'</a></td>'
+      +'<td>'+p.mix+'</td><td>'+(p.roy/100).toFixed(p.roy%100?1:0)+'%</td>'
+      +'<td>'+p.followers+(p.retired?' · retired':'')+'</td></tr>').join('');
+    $('policy_msg').textContent='follow any of these on the floor. one signature, your assets never move.';
+  }catch(e){rows.innerHTML='<tr><td colspan="5" class="dim2">the board is unreachable: '+((e.message||e)+'').slice(0,60)+'</td></tr>';}
+}
 $('mascot_ca').onclick=async()=>{
   try{await navigator.clipboard.writeText('0xe7CFbf084589b73A3FF74E9819Dd3D28ee1E05A9');}catch{}
   const el=$('mascot_ca');
