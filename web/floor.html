@@ -324,7 +324,7 @@
 <div class="foot">✟ under eternal management ✟ the employee works weekends unpaid ✟</div>
 
 <script>
-const CONTRACT = '0x356B8b6ed5CBAaa5879945dACb7Dce6408a679b2'; // world: published policies, followers, royalties
+const CONTRACT = '0x2116ad6cF8eC51f71fD158aE976178fc6Bf5E5B9'; // world venue two: bitcoin aboard
 const DESK = '0xf7DBb9142A194F5f409c2c587cFC559D77C40358';     // the crossing venue before it, still live
 const V4 = '0x3484F1cC081A98103CE0E9E42AE96a2A770eCd79';       // the 26 asset venue before the desk, still live
 const V3 = '0xaFd484733f4B23e235bf1825c9AdA39368160B03';       // the fifteen stock venue, still live
@@ -364,7 +364,9 @@ const STOCKS = [
   ['TSM','0x874cF94aa8eC88Fd9560094dD065f2fB3E41Fc2F','0x58FfE4a942d3885bAa22D7520691F611EF09e7AA'],
   ['BABA','0x62Cc8F9b5f56a33c9C8A60c8B92779f523c4E984','0xad25Ac6C84D497db898fa1E8387bf6Af3532a1c4'],
   ['ASML','0xB4106147E8cce40b7d46124090d373A71b70f87D','0x47F93d52cBeC7C6D2CfC080e154002370a60dAEA'],
+  ['cbBTC','0x3546407C5F94dD7Eab3a853D245b5C5EAb53318a','0xCEC185eB182c47d1bA1EFc84e6959e18cd620Be4',8],
 ];
+const DEC = i => i === 0 ? 6 : (STOCKS[i - 1][3] || 18);
 const RPC = location.origin + '/api/rpc';   // the site's own proxy, local or live
 const EXPLORER = 'https://explorer.mainnet.chain.robinhood.com';
 const USDG = '0x5fc5360D0400a0Fd4f2af552ADD042D716F1d168';
@@ -506,7 +508,7 @@ async function loadMyLaw() {
 // shopping list and start looking like a thing being held in place.
 async function paintGrid(cash, stockRaws) {
   const px = await allPrices();
-  const usd = [cash, ...stockRaws.map((r, i) => Number(BigInt(r)) / 1e18 * px[i + 1])];
+  const usd = [cash, ...stockRaws.map((r, i) => Number(BigInt(r)) / 10 ** DEC(i + 1) * px[i + 1])];
   const total = usd.reduce((a, b) => a + b, 0);
   if (total <= 0) return;
   stockInputs.forEach((inp, i) => {
@@ -568,7 +570,7 @@ $('manage_btn').onclick = async () => {
       call(CONTRACT, SEL.bal + pad(me) + pad(0)),
       ...STOCKS.map((_, i) => call(CONTRACT, SEL.bal + pad(me) + pad(i + 1))),
     ]);
-    const bal = [Number(BigInt(cashRaw)) / 1e6, ...raws.map(r => Number(BigInt(r)) / 1e18)];
+    const bal = [Number(BigInt(cashRaw)) / 1e6, ...raws.map((r, i) => Number(BigInt(r)) / 10 ** DEC(i + 1))];
     const value = bal.reduce((sum, b, i) => sum + b * px[i], 0);
     if (value < 0.5) return say('start_msg', 'this wallet holds nothing to manage yet. bring USDG or stocks to it on Robinhood Chain first.', true);
 
@@ -668,7 +670,7 @@ async function refreshOnce() {
       ]);
       const cash = Number(BigInt(cashRaw)) / 1e6;
       lastRaws = raws;
-      const held = raws.map((r, i) => [Number(BigInt(r)) / 1e18, STOCKS[i][0]])
+      const held = raws.map((r, i) => [Number(BigInt(r)) / 10 ** DEC(i + 1), STOCKS[i][0]])
         .filter(([q]) => q > 0).map(([q, tk]) => q.toFixed(4) + ' ' + tk);
       if (!lawLoaded) await loadMyLaw();
       paintGrid(cash, raws);
@@ -790,7 +792,7 @@ async function planTrades(a) {
   // price table is shared; only walk as far as this venue actually goes
   for (let i = 1; i < n; i++) {
     const delta = (value * (a.weights[i] || 0) / 10000 - bal[i] * px[i]) * 0.97;
-    if (delta < -0.05) { sells.push({ sell: BigInt(i), buy: 0n, amountIn: BigInt(Math.floor(-delta / px[i] * 1e18)) }); freed += -delta; }
+    if (delta < -0.05) { sells.push({ sell: BigInt(i), buy: 0n, amountIn: BigInt(Math.floor(-delta / px[i] * 10 ** DEC(i))) }); freed += -delta; }
     else if (delta > 0.05) { buys.push({ sell: 0n, buy: BigInt(i), amountIn: BigInt(Math.floor(delta * 1e6)), usd: delta }); needed += delta; }
   }
   const budget = bal[0] + freed * 0.99;

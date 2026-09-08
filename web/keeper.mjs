@@ -5,6 +5,7 @@ import { JsonRpcProvider, FetchRequest, Wallet, Contract } from 'ethers';
 
 const RPC = process.env.RPC_URL || 'https://rpc.mainnet.chain.robinhood.com';
 const CONTRACTS = [
+  { addr: '0x2116ad6cF8eC51f71fD158aE976178fc6Bf5E5B9', fromBlock: 57621572, wallet: true, cross: true, fills: true },  // world two: bitcoin aboard
   { addr: '0x356B8b6ed5CBAaa5879945dACb7Dce6408a679b2', fromBlock: 56891260, wallet: true, cross: true, fills: true },  // world: published policies, followers, royalties
   { addr: '0x4f08bdC9353060351f95207CD47D67D1cF6e5989', fromBlock: 55832000, wallet: true, cross: true, fills: true },  // pension: the desk, plus laws that age
   { addr: '0xf7DBb9142A194F5f409c2c587cFC559D77C40358', fromBlock: 55535000, wallet: true, cross: true, fills: true },  // desk: 26 assets, plus the internal cross
@@ -179,7 +180,7 @@ export async function shake() {
   const acct = await v.c.accountOf(wallet.address);
   const bal = [];
   for (let i = 0; i < v.assets.length; i++) {
-    bal.push(Number(await v.c.heldBy(wallet.address, i)) / 10 ** (i === 0 ? 6 : 18));
+    bal.push(Number(await v.c.heldBy(wallet.address, i)) / 10 ** Number(v.assets[i].decimals));
   }
   const value = bal.reduce((s, b, i) => s + b * px[i], 0);
   let pick = 0, worst = 0;
@@ -264,7 +265,7 @@ async function awakeMask(v, px) {
 }
 
 // Sells first (they raise cash), then buys, each leg 3% inside the line.
-function planTrades(weights, balances, px, cash, awake) {
+function planTrades(weights, balances, px, cash, awake, decs) {
   const value = balances.reduce((s, b, i) => s + b * px[i], 0);
   if (value < MIN_VALUE_USD) return null;
   const sells = [], buys = [];
@@ -273,7 +274,7 @@ function planTrades(weights, balances, px, cash, awake) {
     if (awake && !awake[i]) continue;   // sleeping asset: leave it where it is
     const delta = (value * Number(weights[i]) / 10000 - balances[i] * px[i]) * 0.97;
     if (delta < -MIN_LEG_USD) {
-      sells.push({ sellAsset: BigInt(i), buyAsset: 0n, amountIn: BigInt(Math.floor(-delta / px[i] * 1e18)) });
+      sells.push({ sellAsset: BigInt(i), buyAsset: 0n, amountIn: BigInt(Math.floor(-delta / px[i] * 10 ** (decs ? decs[i] : 18))) });
       cashFreed += -delta;
     } else if (delta > MIN_LEG_USD) {
       buys.push({ sellAsset: 0n, buyAsset: BigInt(i), amountIn: BigInt(Math.floor(delta * 1e6)), usd: delta });
@@ -306,12 +307,12 @@ async function crossPass(v, px) {
       const drift = Number(driftRaw);
       if (drift < Math.max(Number(acct.minDriftBps), MIN_ACT_BPS)) continue;
       const balances = [];
-      for (let i = 0; i < v.assets.length; i++) balances.push(Number(await v.c.heldBy(u, i)) / 10 ** (i === 0 ? 6 : 18));
+      for (let i = 0; i < v.assets.length; i++) balances.push(Number(await v.c.heldBy(u, i)) / 10 ** Number(v.assets[i].decimals));
       const value = balances.reduce((s2, b, i) => s2 + b * px[i], 0);
       if (value < MIN_VALUE_USD) continue;
       const deltas = [];
       for (let i = 1; i < v.assets.length; i++) deltas[i] = value * Number(acct.targetBps[i]) / 10000 - balances[i] * px[i];
-      infos.push({ u, drift, value, deltas, bounty: Number(acct.bountyQuote) / 1e6 });
+      infos.push({ u, drift, value, deltas, cash: balances[0], bounty: Number(acct.bountyQuote) / 1e6 });
     } catch {}
   }
   for (const sInfo of infos) for (const bInfo of infos) {
@@ -319,13 +320,23 @@ async function crossPass(v, px) {
     const ownSide = sInfo.u.toLowerCase() === self || bInfo.u.toLowerCase() === self;
     if (ownSide && Date.now() < handsOffUntil) continue;   // a shaken desk stays available to strangers
     for (let i = 1; i < v.assets.length; i++) {
-      const sell = -(sInfo.deltas[i] || 0), buy = bInfo.deltas[i] || 0;
+      const sell = -(sInfo.deltas[i] || 0);
+      // the buyer pays cash for the crossed asset, so it can never take more
+      // than the cash it holds, whatever its target asks for
+      const buy = Math.min(bInfo.deltas[i] || 0, (bInfo.cash || 0) * 0.98);
       if (sell < 0.5 || buy < 0.5) continue;
       const size = Math.min(sell, buy) * 0.95;
-      const amount = BigInt(Math.floor(size / px[i] * 1e6)) * 10n ** 12n;
-      // tried as a read first, always: a cross that would revert costs nothing
-      const est = await v.c.cross.estimateGas(sInfo.u, bInfo.u, i, amount).catch(() => null);
-      if (est === null) continue;
+      const amount = BigInt(Math.floor(size / px[i] * 1e6)) * 10n ** BigInt(v.assets[i].decimals - 6);
+      // tried as a read first, always: a cross that would revert costs nothing.
+      // The node refuses to estimate some valid crosses, so a failed estimate
+      // is retried as a static call with the gas the send will carry; only a
+      // call that also reverts means the pair is not a real match.
+      let est = await v.c.cross.estimateGas(sInfo.u, bInfo.u, i, amount).catch(() => null);
+      if (est === null) {
+        est = 1_800_000n;
+        try { await v.c.cross.staticCall(sInfo.u, bInfo.u, i, amount, { gasLimit: est }); }
+        catch (e) { if (e?.code !== 'CALL_EXCEPTION') log(`desk: node would not price ${sInfo.u.slice(0, 8)}x${bInfo.u.slice(0, 8)} asset ${i} (${e?.code || 'rpc'})`); continue; }
+      }
       // a fee paid to the employee's own wallet is a wash, not income
       const fee = x => x.bounty * Math.min(2 * size / x.value * 10000, x.drift) / 10000;
       const pay = (sInfo.u.toLowerCase() === self ? 0 : fee(sInfo)) + (bInfo.u.toLowerCase() === self ? 0 : fee(bInfo));
@@ -360,9 +371,9 @@ async function serveOne(v, user, px, awake) {
   const balances = [];
   for (let i = 0; i < v.assets.length; i++) {
     const raw = v.wallet ? await v.c.heldBy(user, i) : await v.c.balanceOf(user, i);
-    balances.push(Number(raw) / 10 ** (i === 0 ? 6 : 18));
+    balances.push(Number(raw) / 10 ** Number(v.assets[i].decimals));
   }
-  let plan = planTrades(acct.targetBps, balances, px, balances[0], awake);
+  let plan = planTrades(acct.targetBps, balances, px, balances[0], awake, v.assets.map(a => a.decimals));
   if (!plan) return;
 
   // The public node refuses to simulate a heavy pass, so the desk works in

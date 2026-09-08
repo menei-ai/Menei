@@ -173,7 +173,7 @@ a{color:inherit;text-decoration:none}
   </div>
 
   <div class="ch-row">
-    <div class="ch">Fund: World edition <span style="color:var(--dim)">0x356B…79b2</span> <span class="live">LIVE</span></div>
+    <div class="ch">Fund: World edition <span style="color:var(--dim)">0x2116…E5b9</span> <span class="live">LIVE</span></div>
     <div class="ch" id="mascot_ca" title="0xe7CFbf084589b73A3FF74E9819Dd3D28ee1E05A9" style="flex:0 0 auto;cursor:pointer">CA <span style="color:var(--dim)">0xe7CF…E05A9</span></div>
     <div class="vol">drift <div class="vu"></div><b id="s_drift">…</b></div>
   </div>
@@ -196,7 +196,8 @@ a{color:inherit;text-decoration:none}
 <div class="window sub" id="win_funds" hidden style="left:6%;top:120px;width:520px">
   <div class="titlebar drag"><span class="tb-btn tb-x" data-close="win_funds"></span><span class="title px">FUNDS</span></div>
   <div class="pane">
-    <div class="frow"><div><b>World</b> <span class="new px">NEW</span><br><span class="dim2">anyone publishes a policy, anyone follows it. authors earn a royalty.</span></div><a target="_blank" rel="noopener" href="https://explorer.mainnet.chain.robinhood.com/address/0x356B8b6ed5CBAaa5879945dACb7Dce6408a679b2">0x356B…79b2</a></div>
+    <div class="frow"><div><b>Bitcoin</b> <span class="new px">NEW</span><br><span class="dim2">stocks and bitcoin under one law, priced by the official feed.</span></div><a target="_blank" rel="noopener" href="https://explorer.mainnet.chain.robinhood.com/address/0x2116ad6cF8eC51f71fD158aE976178fc6Bf5E5B9">0x2116…E5b9</a></div>
+    <div class="frow"><div><b>World</b><br><span class="dim2">anyone publishes a policy, anyone follows it. authors earn a royalty.</span></div><a target="_blank" rel="noopener" href="https://explorer.mainnet.chain.robinhood.com/address/0x356B8b6ed5CBAaa5879945dACb7Dce6408a679b2">0x356B…79b2</a></div>
     <div class="frow"><div><b>Pension</b><br><span class="dim2">a policy that ages. sign once, forty years.</span></div><a target="_blank" rel="noopener" href="https://explorer.mainnet.chain.robinhood.com/address/0x4f08bdC9353060351f95207CD47D67D1cF6e5989">0x4f08…5989</a></div>
     <div class="frow"><div><b>Desk</b><br><span class="dim2">two wallets trade with each other at the feed.</span></div><a target="_blank" rel="noopener" href="https://explorer.mainnet.chain.robinhood.com/address/0xf7DBb9142A194F5f409c2c587cFC559D77C40358">0xf7DB…0358</a></div>
     <div class="frow"><div><b>Bid</b><br><span class="dim2">workers are paid for the price they deliver.</span></div><a target="_blank" rel="noopener" href="https://explorer.mainnet.chain.robinhood.com/address/0xb0C34AC5e846e0159f711Db84802D512E916A51F">0xb0C3…A51F</a></div>
@@ -319,17 +320,20 @@ const STOCKS = [
   ['TSM','0x874cF94aa8eC88Fd9560094dD065f2fB3E41Fc2F','0x58FfE4a942d3885bAa22D7520691F611EF09e7AA'],
   ['BABA','0x62Cc8F9b5f56a33c9C8A60c8B92779f523c4E984','0xad25Ac6C84D497db898fa1E8387bf6Af3532a1c4'],
   ['ASML','0xB4106147E8cce40b7d46124090d373A71b70f87D','0x47F93d52cBeC7C6D2CfC080e154002370a60dAEA'],
+  ['cbBTC','0x3546407C5F94dD7Eab3a853D245b5C5EAb53318a','0xCEC185eB182c47d1bA1EFc84e6959e18cd620Be4',8],
 ];
+const DEC=i=>i===0?6:(STOCKS[i-1][3]||18);
 const SEL_REBALANCE='0x4db4b4c9';
 const REB='0xbecdda7c726841dea88e1495b6f401a1d64029ba261415622f400509cf097b35';
 const TARGETSET='0xb8766537c154c2943c70a08668e5bbee5aa95bb3a80803f9c11d0b49b846fb87';
 const USDG='0x5fc5360D0400a0Fd4f2af552ADD042D716F1d168';
 const KEEPER='0x3c71044dca7aa1eb401913a2f96277abe8c019a4';
-const CONTRACT='0x356B8b6ed5CBAaa5879945dACb7Dce6408a679b2';
+const CONTRACT='0x2116ad6cF8eC51f71fD158aE976178fc6Bf5E5B9';
 const CHAIN_HEX='0x1237';
 const EXPLORER='https://explorer.mainnet.chain.robinhood.com';
 const WALLET_VENUES=[
- [CONTRACT,'0x364177c'],
+ [CONTRACT,'0x36f3c44'],
+ ['0x356B8b6ed5CBAaa5879945dACb7Dce6408a679b2','0x364177c'],
  ['0x4f08bdC9353060351f95207CD47D67D1cF6e5989','0x353ef82'],
  ['0xf7DBb9142A194F5f409c2c587cFC559D77C40358','0x34f66fd'],
  ['0x3484F1cC081A98103CE0E9E42AE96a2A770eCd79','0x334a3f8'],
@@ -444,12 +448,12 @@ async function planTrades(a){
   const px=await allPrices();
   const n=Number(BigInt(await call(a.venue,SEL.assetCount)));
   const raws=await Promise.all(Array.from({length:n},(_,i)=>call(a.venue,SEL.bal+pad(a.user)+pad(i))));
-  const bal=raws.map((r,i)=>Number(BigInt(r))/10**(i===0?6:18));
+  const bal=raws.map((r,i)=>Number(BigInt(r))/10**DEC(i));
   const value=bal.reduce((s,b,i)=>s+b*px[i],0);
   const sells=[],buys=[];let freed=0,needed=0;
   for(let i=1;i<n;i++){
     const delta=(value*(a.weights[i]||0)/10000-bal[i]*px[i])*0.97;
-    if(delta<-0.05){sells.push({sell:BigInt(i),buy:0n,amountIn:BigInt(Math.floor(-delta/px[i]*1e18))});freed+=-delta;}
+    if(delta<-0.05){sells.push({sell:BigInt(i),buy:0n,amountIn:BigInt(Math.floor(-delta/px[i]*10**DEC(i)))});freed+=-delta;}
     else if(delta>0.05){buys.push({sell:0n,buy:BigInt(i),amountIn:BigInt(Math.floor(delta*1e6)),usd:delta});needed+=delta;}
   }
   const budget=bal[0]+freed*0.99;
@@ -537,7 +541,7 @@ async function paintManage(){
   if(!me) return;
   const px=await allPrices();
   const raws=await Promise.all(Array.from({length:STOCKS.length+1},(_,i)=>call(CONTRACT,SEL.bal+pad(me)+pad(i))));
-  const bal=raws.map((r,i)=>Number(BigInt(r))/10**(i===0?6:18));
+  const bal=raws.map((r,i)=>Number(BigInt(r))/10**DEC(i));
   const value=bal.reduce((s,b,i)=>s+b*px[i],0);
   const parts=bal.map((b,i)=>[b*px[i],i]).filter(([v])=>v>0.01).sort((a,b)=>b[0]-a[0])
     .map(([v,i])=>(i===0?'CASH':STOCKS[i-1][0])+' '+(v/value*100).toFixed(0)+'%');

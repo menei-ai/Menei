@@ -80,7 +80,7 @@ async function proxyRpc(body, method) {
 const UA = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36';
 // Only what the page needs; anything else is refused.
 const ALLOW = new Set(['eth_call', 'eth_blockNumber', 'eth_getBalance', 'eth_chainId', 'eth_getLogs']);
-const AUM0S = new Set(['0xe46b6e60c7b2cbc1f9761b3f12a69813093b6dde', '0xcc27dd6fd74210303660643bcf6c9d115443bfca', '0xafd484733f4b23e235bf1825c9ada39368160b03', '0x3484f1cc081a98103ce0e9e42ae96a2a770ecd79', '0xf7dbb9142a194f5f409c2c587cfc559d77c40358', '0x4f08bdc9353060351f95207cd47d67d1cf6e5989', '0x356b8b6ed5cbaaa5879945dacb7dce6408a679b2']);
+const AUM0S = new Set(['0xe46b6e60c7b2cbc1f9761b3f12a69813093b6dde', '0xcc27dd6fd74210303660643bcf6c9d115443bfca', '0xafd484733f4b23e235bf1825c9ada39368160b03', '0x3484f1cc081a98103ce0e9e42ae96a2a770ecd79', '0xf7dbb9142a194f5f409c2c587cfc559d77c40358', '0x4f08bdc9353060351f95207cd47d67d1cf6e5989', '0x356b8b6ed5cbaaa5879945dacb7dce6408a679b2', '0x2116ad6cf8ec51f71fd158ae976178fc6bf5e5b9']);
 // The proxy serves this site only. No CORS headers are ever emitted, so
 // other origins cannot borrow it from a browser; same-origin needs none.
 const SITE_ORIGINS = new Set(['https://aumzero.com', 'https://www.aumzero.com', 'https://aum0-web-production.up.railway.app']);
@@ -106,6 +106,8 @@ const FEEDS = [
   '0x1C6c8cADBe02E19129c39dDB92281cE4c0bf206b','0x396118bdFB181e6240E74D243F266B061c0edc3D',
   '0x874cF94aa8eC88Fd9560094dD065f2fB3E41Fc2F','0x62Cc8F9b5f56a33c9C8A60c8B92779f523c4E984',
   '0xB4106147E8cce40b7d46124090d373A71b70f87D',
+  // and the coin
+  '0x3546407C5F94dD7Eab3a853D245b5C5EAb53318a',
 ];
 let priceCache = { at: 0, px: null };
 let keeper = null, shaking = false;
@@ -171,6 +173,7 @@ function sendText(req, res, status, headers, body) {
 const REB_TOPIC = '0xbecdda7c726841dea88e1495b6f401a1d64029ba261415622f400509cf097b35';
 const TS_TOPIC = '0xb8766537c154c2943c70a08668e5bbee5aa95bb3a80803f9c11d0b49b846fb87';
 const STAT_VENUES = [
+  ['0x2116ad6cF8eC51f71fD158aE976178fc6Bf5E5B9', '0x36f3c44', true],
   ['0x356B8b6ed5CBAaa5879945dACb7Dce6408a679b2', '0x364177c', true],
   ['0x4f08bdC9353060351f95207CD47D67D1cF6e5989', '0x353ef82', true],
   ['0xf7DBb9142A194F5f409c2c587cFC559D77C40358', '0x34f66fd', true],
